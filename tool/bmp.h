@@ -2,9 +2,13 @@
 
 #define ARG_NAME(arg) #arg
 #define BMP_DEBUG_SESSION
+#define BMPHDUMP(bmph) bmph_dump(bmph, #bmph)
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+
+#include <string.h>
 
 #include <assert.h>
 //#define NDEBUG
@@ -12,8 +16,13 @@
 #include <errno.h>
 
 
+#ifndef __FILENAME__
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#endif
+
+
 typedef int  errno_t;
-typedef (int*) pict_t;
+typedef int* pict_t;
 
 /* names by WinAPI */
 typedef uint8_t		BYTE;	//1

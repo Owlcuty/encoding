@@ -18,7 +18,8 @@
 
 typedef int errno_t;
 
-pict_t *load_frames(const char *filename, size_t num)
+/* Necessary to free return value! */
+pict_t load_frames(const char *filename, size_t num)
 {
 	assert(filename);
 	
@@ -32,16 +33,16 @@ pict_t *load_frames(const char *filename, size_t num)
 	pict_t cur_pict = NULL;
 	pict_t *cur_pos = data;
 	
-	for (int frame = 0; frame < num; frame++)
+	for (int frame = 1; frame <= num; frame++)
 	{
 		sprintf(cur_filename, filename, frame);
 		cur_pict = load_bmp((const char*)cur_filename, &width, &height);
 		if (!cur_pict)
 		{
-			fprintf(stderr, "%d::%s:: Bad loading bmp\n", __LINE__, __PRETTY_FUNCTION__);
+			fprintf(stderr, "%d::\"%s\":%s:: Bad loading bmp\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 			goto err;
 		}
-		if (!frame)
+		if (frame == 1)
 		{
 			data = (pict_t*)calloc(width * height * num, sizeof(*data));
 			cur_pos = data;
@@ -61,6 +62,11 @@ err:
 	
 	return NULL;
 }
+
+//errno_t fill_avframe(AVFrame *frame, pict_t pict)
+//{
+//	for (int y = 0; y < )
+//}
 
 errno_t encode(AVCodecContext *ctx, AVFrame *frame, int ret, FILE* file)
 {
@@ -84,14 +90,15 @@ errno_t encode(AVCodecContext *ctx, AVFrame *frame, int ret, FILE* file)
 			return -1;
 		}
 		
-		for (int y = 0; y < ctx->height / 2; y++)
-		{
-			for (int x = 0; x < ctx->width / 2; x++)
-			{
-				frame->data[1][y * frame->linesize[1] + x] = 128 + y + i * 2;
-				frame->data[2][y * frame->linesize[2] + x] = 64 + x + i * 5; // Why?
-			}
-		}
+		// fake data for test
+//		for (int y = 0; y < ctx->height / 2; y++)
+//		{
+//			for (int x = 0; x < ctx->width / 2; x++)
+//			{
+//				frame->data[1][y * frame->linesize[1] + x] = 128 + y + i * 2;
+//				frame->data[2][y * frame->linesize[2] + x] = 64 + x + i * 5; // Why?
+//			}
+//		}
 		
 		frame->pts = i;
 		
@@ -195,64 +202,70 @@ errno_t init_tool(FILE* file,
 
 int main(int argc, char **argv)
 {
+	pict_t frames = load_frames("../forbmp/image%03d.bmp", 200);
+	if (!frames)
+	{
+		fprintf(stderr, "%d:: Ban\n", __LINE__);
+		return 0;
+	}
 //	const char  *filename	= NULL,
 //				*codec_name = NULL;
 	
-	const char  *filename	= "output.mp4",
-				*codec_name = "vp9";
-	
-//	if (argc <= 2)
+//	const char  *filename	= "output.mp4",
+//				*codec_name = "vp9";
+//	
+////	if (argc <= 2)
+////	{
+////		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
+////		errno = EINVAL;
+////		goto err;
+////	}
+////	filename	= argv[1];
+////	codec_name	= argv[2];
+//	
+//	avcodec_register_all();
+//	
+//	const AVCodec	*codec	= NULL;
+//	AVCodecContext	*ctx	= NULL;
+//	
+//	codec = avcodec_find_encoder_by_name(codec_name);
+//	if (!codec)
 //	{
-//		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
+//		fprintf(stderr, "Codec not found\n");
 //		errno = EINVAL;
 //		goto err;
 //	}
-//	filename	= argv[1];
-//	codec_name	= argv[2];
-	
-	avcodec_register_all();
-	
-	const AVCodec	*codec	= NULL;
-	AVCodecContext	*ctx	= NULL;
-	
-	codec = avcodec_find_encoder_by_name(codec_name);
-	if (!codec)
-	{
-		fprintf(stderr, "Codec not found\n");
-		errno = EINVAL;
-		goto err;
-	}
-	
-	ctx = avcodec_alloc_context3(codec);
-	if (!ctx)
-	{
-		fprintf(stderr, "Could not allocate video codec context");
-		errno = ENOMEM;
-		goto err;
-	}
-	
-	FILE* file = fopen(filename, "wb");
-	if (!file)
-	{
-		fprintf(stderr, "Could not open %s\n", filename);
-		errno = ENOENT;
-		goto err;
-	}
-	
-	if (init_tool(file, codec, ctx, 400000, 640, 360, (AVRational){1, 25}, (AVRational){25, 1}, 10, 1, AV_PIX_FMT_YUV420P))
-	{
-		goto err;
-	}
-	
-	
-	fclose(file);
-	avcodec_free_context(&ctx);
-	
-	return 0;
-	
-err:
-	fclose(file);
-	avcodec_free_context(&ctx);
-	
-	return errno;
+//	
+//	ctx = avcodec_alloc_context3(codec);
+//	if (!ctx)
+//	{
+//		fprintf(stderr, "Could not allocate video codec context");
+//		errno = ENOMEM;
+//		goto err;
+//	}
+//	
+//	FILE* file = fopen(filename, "wb");
+//	if (!file)
+//	{
+//		fprintf(stderr, "Could not open %s\n", filename);
+//		errno = ENOENT;
+//		goto err;
+//	}
+//	
+//	if (init_tool(file, codec, ctx, 400000, 640, 360, (AVRational){1, 25}, (AVRational){25, 1}, 10, 1, AV_PIX_FMT_YUV420P))
+//	{
+//		goto err;
+//	}
+//	
+//	
+//	fclose(file);
+//	avcodec_free_context(&ctx);
+//	
+//	return 0;
+//	
+//err:
+//	fclose(file);
+//	avcodec_free_context(&ctx);
+//	
+//	return errno;
 }

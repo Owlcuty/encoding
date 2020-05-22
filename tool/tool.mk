@@ -13,7 +13,7 @@ CurrentFileName        :=
 CurrentFilePath        :=
 CurrentFileFullPath    :=
 User                   :=kaid
-Date                   :=05/21/20
+Date                   :=05/22/20
 CodeLitePath           :=/home/kaid/.codelite
 LinkerName             :=/usr/bin/g++
 SharedObjectLinkerName :=/usr/bin/g++ -shared -fPIC
@@ -60,7 +60,7 @@ AS       := /usr/bin/as
 ## User defined environment variables
 ##
 CodeLiteDir:=/usr/share/codelite
-Objects0=$(IntermediateDirectory)/main.c$(ObjectSuffix) 
+Objects0=$(IntermediateDirectory)/main.c$(ObjectSuffix) $(IntermediateDirectory)/bmp.c$(ObjectSuffix) 
 
 
 
@@ -98,6 +98,14 @@ $(IntermediateDirectory)/main.c$(DependSuffix): main.c
 
 $(IntermediateDirectory)/main.c$(PreprocessSuffix): main.c
 	$(CC) $(CFLAGS) $(IncludePath) $(PreprocessOnlySwitch) $(OutputSwitch) $(IntermediateDirectory)/main.c$(PreprocessSuffix) main.c
+
+$(IntermediateDirectory)/bmp.c$(ObjectSuffix): bmp.c $(IntermediateDirectory)/bmp.c$(DependSuffix)
+	$(CC) $(SourceSwitch) "/home/kaid/test_ffmpeg/ffmpeg_tools/tool/bmp.c" $(CFLAGS) $(ObjectSwitch)$(IntermediateDirectory)/bmp.c$(ObjectSuffix) $(IncludePath)
+$(IntermediateDirectory)/bmp.c$(DependSuffix): bmp.c
+	@$(CC) $(CFLAGS) $(IncludePath) -MG -MP -MT$(IntermediateDirectory)/bmp.c$(ObjectSuffix) -MF$(IntermediateDirectory)/bmp.c$(DependSuffix) -MM bmp.c
+
+$(IntermediateDirectory)/bmp.c$(PreprocessSuffix): bmp.c
+	$(CC) $(CFLAGS) $(IncludePath) $(PreprocessOnlySwitch) $(OutputSwitch) $(IntermediateDirectory)/bmp.c$(PreprocessSuffix) bmp.c
 
 
 -include $(IntermediateDirectory)/*$(DependSuffix)
