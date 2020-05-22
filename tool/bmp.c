@@ -5,11 +5,37 @@ void bmph_dump(bitmapfileheader_t *bmph, const char* name)
 {
 	printf("\n---------------\n");
 	printf("%s [%X]\n{\n", name, bmph);
-	printf("\t %20s = %8X (size = %d) " "[%X],\n",	"bfType",		bmph->bfType, sizeof(bmph->bfType), &bmph->bfType);
-	printf("\t %20s = %8ld (size = %d) ""[%X],\n",	"bfSize",		bmph->bfSize, sizeof(bmph->bfSize), &bmph->bfSize);
-	printf("\t %20s = %8d (size = %d) " "[%X],\n",	"bfReserved1",	bmph->bfReserved1, sizeof(bmph->bfReserved1), &bmph->bfReserved1);
-	printf("\t %20s = %8d (size = %d) " "[%X],\n",	"bfReserved2",	bmph->bfReserved2, sizeof(bmph->bfReserved2), &bmph->bfReserved2);
-	printf("\t %20s = %8ld (size = %d) ""[%X]\n",	"bfOffBits",	bmph->bfOffBits, sizeof(bmph->bfOffBits), &bmph->bfOffBits);
+	printf("\t %20s = %8X (size = %d) [%X],\n",	"bfType",		bmph->bfType, sizeof(bmph->bfType), &bmph->bfType);
+	printf("\t %20s = %8d (size = %d) [%X],\n",	"bfSize",		bmph->bfSize, sizeof(bmph->bfSize), &bmph->bfSize);
+	printf("\t %20s = %8hu (size = %d) [%X],\n","bfReserved1",	bmph->bfReserved1, sizeof(bmph->bfReserved1), &bmph->bfReserved1);
+	printf("\t %20s = %8hu (size = %d) [%X],\n","bfReserved2",	bmph->bfReserved2, sizeof(bmph->bfReserved2), &bmph->bfReserved2);
+	printf("\t %20s = %8d (size = %d) [%X]\n",	"bfOffBits",	bmph->bfOffBits, sizeof(bmph->bfOffBits), &bmph->bfOffBits);
+	
+	printf("}\n---------------\n");
+}
+
+void bmpinfo_dump(bitmapinfo_t *bmpinfo, const char* name)
+{
+	printf("\n---------------\n");
+	printf("%s [%X]\n{\n", name, bmpinfo);
+	printf("\t %20s = %8d (size = %d) [%X],\n",	"biSize",		bmpinfo->biSize, sizeof(bmpinfo->biSize), &bmpinfo->biSize);
+	printf("\t %20s = %8d (size = %d) [%X],\n",	"biWidth",		bmpinfo->biWidth, sizeof(bmpinfo->biWidth), &bmpinfo->biWidth);
+	printf("\t %20s = %8d (size = %d) [%X],\n",	"biHeight",		bmpinfo->biHeight, sizeof(bmpinfo->biHeight), &bmpinfo->biHeight);
+	printf("\t %20s = %8hu (size = %d) [%X],\n","biPlanes",		bmpinfo->biPlanes, sizeof(bmpinfo->biPlanes), &bmpinfo->biPlanes);
+	printf("\t %20s = %8hu (size = %d) [%X]\n",	"biBitCount",	bmpinfo->biBitCount, sizeof(bmpinfo->biBitCount), &bmpinfo->biBitCount);
+	printf("\t %20s = %8d (size = %d) [%X]\n",	"biCompression",bmpinfo->biCompression, sizeof(bmpinfo->biCompression), &bmpinfo->biCompression);
+	printf("\t %20s = %8d (size = %d) [%X]\n",	"biSizeImage",	bmpinfo->biSizeImage, sizeof(bmpinfo->biSizeImage), &bmpinfo->biSizeImage);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
+//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
 	
 	printf("}\n---------------\n");
 }
@@ -57,8 +83,8 @@ pict_t load_bmp(const char* filename,
 	assert(width);
 	assert(height);
 	
-	width  = -1;
-	height = -1;
+	*width  = -1;
+	*height = -1;
 	
 	unsigned char	*tmp_buf	= NULL;
 	char			*buffer		= NULL;
@@ -198,11 +224,6 @@ pict_t load_bmp(const char* filename,
 		cur_pos += sizeof(bmpinfo.biClrImportant);
 	}
 	
-	if (bmpinfo.biSizeImage == 0) // necessary ?
-	{
-		bmpinfo.biSizeImage = (bmpinfo.biWidth * 3 + bmpinfo.biWidth % 4) * bmpinfo.biHeight;
-	}
-	
 	bmpinfo.biRedMask   = 0;
 	bmpinfo.biGreenMask = 0;
 	bmpinfo.biBlueMask  = 0;
@@ -236,6 +257,9 @@ pict_t load_bmp(const char* filename,
 		bmpinfo.biBlueMask	= maskVal;
 	}
 	
+	
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+	
 	if (bmpinfo.biSize >= 56)
 	{
 		memcpy(&bmpinfo.biAlphaMask, cur_pos, sizeof(bmpinfo.biAlphaMask));
@@ -246,21 +270,31 @@ pict_t load_bmp(const char* filename,
 		bmpinfo.biAlphaMask = maskVal << (bitsOnColor * 3);
 	}
 	
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+	
 	if (bmpinfo.biSize != 12 && bmpinfo.biSize != 40 && bmpinfo.biSize != 52 &&
 		bmpinfo.biSize != 56 && bmpinfo.biSize != 108) {
 		fprintf(stderr, "%d:: Error: Unsupported BMP format.", __LINE__);
 		goto err;
 	}
 	
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+	
 	if (bmpinfo.biBitCount != 16 && bmpinfo.biBitCount != 24 && bmpinfo.biBitCount != 32) {
 		fprintf(stderr, "%d:: Error: Unsupported BMP bit count.", __LINE__);
 		goto err;
 	}
+	
+	
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
  
 	if (bmpinfo.biCompression != 0 && bmpinfo.biCompression != 3) {
 		fprintf(stderr, "%d:: Error: Unsupported BMP compression.", __LINE__);
 		goto err;
 	}
+	
+	
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 	
 	if (bmph.bfOffBits != 14 + bmpinfo.biSize ||
 		bmpinfo.biWidth  < 1 || bmpinfo.biWidth  > 10000 ||
@@ -273,8 +307,12 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
+	BMPINFODUMP(&bmpinfo);
+	
 	*width  = bmpinfo.biWidth;
 	*height = bmpinfo.biHeight;
+	
+	int mwidth = (3 * (*width) + 3) & (-4);
 	
 	tmp_buf = (unsigned char*)calloc(bmpinfo.biSizeImage, sizeof(*tmp_buf));
 	if (!tmp_buf)
@@ -282,16 +320,25 @@ pict_t load_bmp(const char* filename,
 		perror("calloc() failed");
 		goto err;
 	}
+	
 #ifdef BMP_DEBUG_SESSION
 	printf("%d:: %d bytes was alloced\n", __LINE__, bmpinfo.biSizeImage); // log (to del // debug session)
 #endif
 	
-	res = fread(tmp_buf, 1, bmpinfo.biSizeImage, file);
-	if (res != bmpinfo.biSizeImage)
+	if (bmpinfo.biSizeImage == 0) // necessary ?
 	{
-		fread(stderr, "%d:: Bad reading %s\n", __LINE__, ARG_NAME(tmp_buf));
+		bmpinfo.biSizeImage = (bmpinfo.biWidth * 3 + bmpinfo.biWidth % 4) * bmpinfo.biHeight;
+	}
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+	res = fread(tmp_buf, 1, mwidth * (*height), file);
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+	if (res != mwidth * (*height))
+	{
+		fprintf(stderr, "%d:: Bad reading %s\n", __LINE__, ARG_NAME(tmp_buf));
 		goto err;
 	}
+	
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 	
 	frame = (pict_t)calloc((*width) * (*height), sizeof(*frame));
 	if (!frame)
@@ -300,7 +347,6 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
-	int mwidth = (3 * (*width) + 3) & (-4);
 	// BGR -> RGB
 	unsigned char* ptr = (unsigned char*)frame;
 	for (int y = height - 1; y >= 0; y--)

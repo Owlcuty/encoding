@@ -3,6 +3,7 @@
 #define ARG_NAME(arg) #arg
 #define BMP_DEBUG_SESSION
 #define BMPHDUMP(bmph) bmph_dump(bmph, #bmph)
+#define BMPINFODUMP(bmpinfo) bmpinfo_dump(bmpinfo, #bmpinfo)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +31,8 @@ typedef uint16_t	WORD;	//2
 typedef uint32_t	DWORD;	//4
 typedef int32_t		LONG;	//4
 
+
+#pragma pack(push, 1)
 typedef struct
 {
 	WORD	bfType;
@@ -60,6 +63,7 @@ typedef struct
 	
 	DWORD	biAlphaMask;
 } bitmapinfo_t;
+#pragma pack(pop)
 
 //int get_filesize(FILE* file);
 //unsigned char bitextract(const DWORD byte, const DWORD mask);
