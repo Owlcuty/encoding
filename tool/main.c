@@ -2,6 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <assert.h>
+//#define NDEBUG
+
+
 #include <errno.h>
 
 #include <libavcodec/avcodec.h>
@@ -9,9 +13,54 @@
 #include <libavutil/opt.h>
 #include <libavutil/imgutils.h>
 
+#include <bmp.h>
+
 
 typedef int errno_t;
 
+pict_t *load_frames(const char *filename, size_t num)
+{
+	assert(filename);
+	
+	pict_t *data = NULL;
+	
+	int width  = 0;
+	int height = 0;
+	
+	char *cur_filename = (char*)calloc(strlen(filename) + 1, sizeof(*cur_filename));
+	
+	pict_t cur_pict = NULL;
+	pict_t *cur_pos = data;
+	
+	for (int frame = 0; frame < num; frame++)
+	{
+		sprintf(cur_filename, filename, frame);
+		cur_pict = load_bmp((const char*)cur_filename, &width, &height);
+		if (!cur_pict)
+		{
+			fprintf(stderr, "%d::%s:: Bad loading bmp\n", __LINE__, __PRETTY_FUNCTION__);
+			goto err;
+		}
+		if (!frame)
+		{
+			data = (pict_t*)calloc(width * height * num, sizeof(*data));
+			cur_pos = data;
+		}
+		memcpy(cur_pos, cur_pict, width * height);
+		cur_pos += width * height;
+	}
+	
+	if (cur_filename)
+		free(cur_filename);
+	
+	return data;
+	
+err:
+	if (cur_filename)
+		free(cur_filename);
+	
+	return NULL;
+}
 
 errno_t encode(AVCodecContext *ctx, AVFrame *frame, int ret, FILE* file)
 {
@@ -149,7 +198,7 @@ int main(int argc, char **argv)
 //	const char  *filename	= NULL,
 //				*codec_name = NULL;
 	
-	const char  *filename	= "input.mp4",
+	const char  *filename	= "output.mp4",
 				*codec_name = "vp9";
 	
 //	if (argc <= 2)

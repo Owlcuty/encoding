@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Project Name="tool" Version="10.0.0" InternalType="Console">
+  <VirtualDirectory Name="includes">
+    <File Name="bmp.h"/>
+  </VirtualDirectory>
   <Description/>
   <Dependencies/>
   <VirtualDirectory Name="src">
+    <File Name="bmp.c"/>
     <File Name="main.c"/>
   </VirtualDirectory>
   <Settings Type="Executable">
