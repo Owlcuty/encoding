@@ -36,19 +36,39 @@ pict_t load_frames(const char *filename, size_t num)
 	for (int frame = 1; frame <= num; frame++)
 	{
 		sprintf(cur_filename, filename, frame);
+		
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 		cur_pict = load_bmp((const char*)cur_filename, &width, &height);
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 		if (!cur_pict)
 		{
 			fprintf(stderr, "%d::\"%s\":%s:: Bad loading bmp\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 			goto err;
 		}
+		
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 		if (frame == 1)
 		{
 			data = (pict_t*)calloc(width * height * num, sizeof(*data));
+			if (!data)
+			{
+				perror("calloc() load_frames::data failed");
+				goto err;
+			}
+#ifdef BMP_DEBUG_SESSION
+			printf("%s::%d::%s:: For data was alloced %d bytes\n", __FILENAME__, __LINE__, __PRETTY_FUNCTION__, width * height * num);
+#endif
 			cur_pos = data;
 		}
+		
+	printf("%d::%s::%s Data [%X] -- Cur_pos [%X]. Width {%d}, Height {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
+							data,		cur_pos,
+									width,		height);
 		memcpy(cur_pos, cur_pict, width * height);
-		cur_pos += width * height;
+		
+	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+		cur_pos += width * height * sizeof(*cur_pos);
+		break;
 	}
 	
 	if (cur_filename)

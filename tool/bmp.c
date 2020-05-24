@@ -48,6 +48,7 @@ int get_filesize(FILE* file)
 	fseek(file, 0, SEEK_END);
 	int filesize = ftell(file);
 	fseek(file, pos, SEEK_SET);
+	printf("%d::%s:: size of file = %d\n", __LINE__, __PRETTY_FUNCTION__, filesize);
 	
 	return filesize;
 }
@@ -128,11 +129,6 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
-	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
-	
-	
-	
 	if (fread(buffer, 1, filesize, file) < filesize - sizeof(bitmapfileheader_t))
 	{
 		fprintf(stderr, "%d:: Bad here :: %s\n", __LINE__, __PRETTY_FUNCTION__);
@@ -142,17 +138,14 @@ pict_t load_bmp(const char* filename,
 	
 	BMPHDUMP(&bmph);
 	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
-	
 	char *cur_pos = buffer;
 	
 	if (bmph.bfSize			!= filesize	||
 		bmph.bfReserved1	!= 0		||
 		bmph.bfReserved2	!= 0)
 	{
-		
-	printf("%d::%s::%s BAD HERE\n -- bfSize {%d} \\\\ filesize {%d} -- bfReserved1 {%d} -- bfReserved2 {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
-		bmph.bfSize, filesize, bmph.bfReserved1, bmph.bfReserved2);
+		printf("%d::%s::%s BAD HERE\n -- bfSize {%d} \\\\ filesize {%d} -- bfReserved1 {%d} -- bfReserved2 {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
+			bmph.bfSize, filesize, bmph.bfReserved1, bmph.bfReserved2);
 	
 		goto err;
 	}
@@ -244,10 +237,6 @@ pict_t load_bmp(const char* filename,
 		cur_pos += sizeof(bmpinfo.biBlueMask);
 	}
 	
-	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
-	
-	
 	if (!bmpinfo.biRedMask		|| 
 		!bmpinfo.biGreenMask	||
 		!bmpinfo.biBlueMask)
@@ -256,9 +245,6 @@ pict_t load_bmp(const char* filename,
 		bmpinfo.biGreenMask	= maskVal << bitsOnColor;
 		bmpinfo.biBlueMask	= maskVal;
 	}
-	
-	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 	
 	if (bmpinfo.biSize >= 56)
 	{
@@ -270,31 +256,21 @@ pict_t load_bmp(const char* filename,
 		bmpinfo.biAlphaMask = maskVal << (bitsOnColor * 3);
 	}
 	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
-	
 	if (bmpinfo.biSize != 12 && bmpinfo.biSize != 40 && bmpinfo.biSize != 52 &&
 		bmpinfo.biSize != 56 && bmpinfo.biSize != 108) {
 		fprintf(stderr, "%d:: Error: Unsupported BMP format.", __LINE__);
 		goto err;
 	}
 	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
-	
 	if (bmpinfo.biBitCount != 16 && bmpinfo.biBitCount != 24 && bmpinfo.biBitCount != 32) {
 		fprintf(stderr, "%d:: Error: Unsupported BMP bit count.", __LINE__);
 		goto err;
 	}
 	
-	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
- 
 	if (bmpinfo.biCompression != 0 && bmpinfo.biCompression != 3) {
 		fprintf(stderr, "%d:: Error: Unsupported BMP compression.", __LINE__);
 		goto err;
 	}
-	
-	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 	
 	if (bmph.bfOffBits != 14 + bmpinfo.biSize ||
 		bmpinfo.biWidth  < 1 || bmpinfo.biWidth  > 10000 ||
@@ -327,18 +303,21 @@ pict_t load_bmp(const char* filename,
 	
 	if (bmpinfo.biSizeImage == 0) // necessary ?
 	{
+#ifdef BMP_DEBUG_SESSION
+		printf("%d:: biSizeImage = 0\n", __LINE__);
+#endif
 		bmpinfo.biSizeImage = (bmpinfo.biWidth * 3 + bmpinfo.biWidth % 4) * bmpinfo.biHeight;
+#ifdef BMP_DEBUG_SESSION
+		printf("-->biSizeImage = {%d}\n", bmpinfo.biSizeImage);
+#endif
 	}
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
-	res = fread(tmp_buf, 1, mwidth * (*height), file);
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
-	if (res != mwidth * (*height))
-	{
-		fprintf(stderr, "%d:: Bad reading %s\n", __LINE__, ARG_NAME(tmp_buf));
-		goto err;
-	}
-	
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+//	res = fread(tmp_buf, mwidth * (*height), 1, file);
+	memcpy(tmp_buf, cur_pos, bmpinfo.biSizeImage);
+//	if (res != mwidth * (*height))
+//	{
+//		fprintf(stderr, "%d:: Bad reading %s\n", __LINE__, ARG_NAME(tmp_buf));
+//		goto err;
+//	}
 	
 	frame = (pict_t)calloc((*width) * (*height), sizeof(*frame));
 	if (!frame)
@@ -349,10 +328,10 @@ pict_t load_bmp(const char* filename,
 	
 	// BGR -> RGB
 	unsigned char* ptr = (unsigned char*)frame;
-	for (int y = height - 1; y >= 0; y--)
+	for (int y = *height - 1; y >= 0; y--)
 	{
 		unsigned char *pRow = tmp_buf + mwidth * y;
-		for (int x = 0; x < width; x++)
+		for (int x = 0; x < *width; x++)
 		{
 			*ptr++ = *(pRow + 2);
 			*ptr++ = *(pRow + 1);
