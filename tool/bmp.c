@@ -48,7 +48,21 @@ int get_filesize(FILE* file)
 	fseek(file, 0, SEEK_END);
 	int filesize = ftell(file);
 	fseek(file, pos, SEEK_SET);
+#ifdef BMP_DEBUG_SESSION
 	printf("%d::%s:: size of file = %d\n", __LINE__, __PRETTY_FUNCTION__, filesize);
+#endif
+	return filesize;
+}
+
+int get_filesize_debug(FILE* file, const char* filename)
+{
+	assert(file);
+	
+	int pos = ftell(file);
+	fseek(file, 0, SEEK_END);
+	int filesize = ftell(file);
+	fseek(file, pos, SEEK_SET);
+	printf("%d::%s:: size of file \"%s\" = %d\n", __LINE__, __PRETTY_FUNCTION__, filename, filesize);
 	
 	return filesize;
 }
@@ -115,7 +129,7 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
-	int filesize = get_filesize(file);
+	int filesize = get_filesize_debug(file, filename);
 	if (filesize == -1)
 	{
 		fprintf(stderr, "%d:: Bad read size of %s\n", __LINE__, filename);
@@ -346,8 +360,6 @@ pict_t load_bmp(const char* filename,
 		free(tmp_buf);
 	if (buffer)
 		free(buffer);
-	if (frame)
-		free(frame);
 	
 	fclose(file);
 	

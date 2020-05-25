@@ -19,7 +19,7 @@
 typedef int errno_t;
 
 /* Necessary to free return value! */
-pict_t load_frames(const char *filename, size_t num)
+pict_t *load_frames(const char *filename, size_t num)
 {
 	assert(filename);
 	
@@ -36,17 +36,14 @@ pict_t load_frames(const char *filename, size_t num)
 	for (int frame = 1; frame <= num; frame++)
 	{
 		sprintf(cur_filename, filename, frame);
-		
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+
 		cur_pict = load_bmp((const char*)cur_filename, &width, &height);
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 		if (!cur_pict)
 		{
 			fprintf(stderr, "%d::\"%s\":%s:: Bad loading bmp\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 			goto err;
 		}
 		
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 		if (frame == 1)
 		{
 			data = (pict_t*)calloc(width * height * num, sizeof(*data));
@@ -61,14 +58,20 @@ pict_t load_frames(const char *filename, size_t num)
 			cur_pos = data;
 		}
 		
+#ifdef BMP_DEBUG_SESSION
 	printf("%d::%s::%s Data [%X] -- Cur_pos [%X]. Width {%d}, Height {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
 							data,		cur_pos,
-									width,		height);
-		memcpy(cur_pos, cur_pict, width * height);
+														width,		height);
+	printf("%d::%s::%s Cur_pict [%X] \n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, cur_pict);
+#endif
+//		memcpy(cur_pos, cur_pict, width * height * sizeof(int));
 		
-	printf("%d::%s::%s BAD HERE\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
-		cur_pos += width * height * sizeof(*cur_pos);
-		break;
+		*cur_pos = cur_pict;
+		cur_pos++;
+		
+//		cur_pos += width * height * sizeof(int);
+//		free(cur_pict);
+//		break;
 	}
 	
 	if (cur_filename)
@@ -79,6 +82,8 @@ pict_t load_frames(const char *filename, size_t num)
 err:
 	if (cur_filename)
 		free(cur_filename);
+	if (cur_pict)
+		free(cur_pict);
 	
 	return NULL;
 }
@@ -222,7 +227,7 @@ errno_t init_tool(FILE* file,
 
 int main(int argc, char **argv)
 {
-	pict_t frames = load_frames("../forbmp/image%03d.bmp", 200);
+	pict_t *frames = load_frames("../forbmp/image%03d.bmp", 200);
 	if (!frames)
 	{
 		fprintf(stderr, "%d:: Ban\n", __LINE__);
@@ -231,23 +236,23 @@ int main(int argc, char **argv)
 //	const char  *filename	= NULL,
 //				*codec_name = NULL;
 	
-//	const char  *filename	= "output.mp4",
-//				*codec_name = "vp9";
-//	
-////	if (argc <= 2)
-////	{
-////		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
-////		errno = EINVAL;
-////		goto err;
-////	}
-////	filename	= argv[1];
-////	codec_name	= argv[2];
-//	
-//	avcodec_register_all();
-//	
-//	const AVCodec	*codec	= NULL;
-//	AVCodecContext	*ctx	= NULL;
-//	
+	const char  *filename	= "output.mp4",
+				*codec_name = "VP9";
+	
+//	if (argc <= 2)
+//	{
+//		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
+//		errno = EINVAL;
+//		goto err;
+//	}
+//	filename	= argv[1];
+//	codec_name	= argv[2];
+	
+	avcodec_register_all();
+	
+	const AVCodec	*codec	= NULL;
+	AVCodecContext	*ctx	= NULL;
+	
 //	codec = avcodec_find_encoder_by_name(codec_name);
 //	if (!codec)
 //	{

@@ -5,15 +5,15 @@
 ## Debug
 ProjectName            :=tool
 ConfigurationName      :=Debug
-WorkspacePath          :=/home/kaid/encoding
-ProjectPath            :=/home/kaid/encoding/tool
+WorkspacePath          :=/home/kaid/test_ffmpeg/ffmpeg_tools
+ProjectPath            :=/home/kaid/test_ffmpeg/ffmpeg_tools/tool
 IntermediateDirectory  :=./Debug
 OutDir                 := $(IntermediateDirectory)
 CurrentFileName        :=
 CurrentFilePath        :=
 CurrentFileFullPath    :=
 User                   :=kaid
-Date                   :=24/05/20
+Date                   :=05/25/20
 CodeLitePath           :=/home/kaid/.codelite
 LinkerName             :=/usr/bin/g++
 SharedObjectLinkerName :=/usr/bin/g++ -shared -fPIC
@@ -91,15 +91,19 @@ PreBuild:
 ##
 ## Objects
 ##
-$(IntermediateDirectory)/main.c$(ObjectSuffix): main.c
+$(IntermediateDirectory)/main.c$(ObjectSuffix): main.c $(IntermediateDirectory)/main.c$(DependSuffix)
+	$(CC) $(SourceSwitch) "/home/kaid/test_ffmpeg/ffmpeg_tools/tool/main.c" $(CFLAGS) $(ObjectSwitch)$(IntermediateDirectory)/main.c$(ObjectSuffix) $(IncludePath)
+$(IntermediateDirectory)/main.c$(DependSuffix): main.c
 	@$(CC) $(CFLAGS) $(IncludePath) -MG -MP -MT$(IntermediateDirectory)/main.c$(ObjectSuffix) -MF$(IntermediateDirectory)/main.c$(DependSuffix) -MM main.c
-	$(CC) $(SourceSwitch) "/home/kaid/encoding/tool/main.c" $(CFLAGS) $(ObjectSwitch)$(IntermediateDirectory)/main.c$(ObjectSuffix) $(IncludePath)
+
 $(IntermediateDirectory)/main.c$(PreprocessSuffix): main.c
 	$(CC) $(CFLAGS) $(IncludePath) $(PreprocessOnlySwitch) $(OutputSwitch) $(IntermediateDirectory)/main.c$(PreprocessSuffix) main.c
 
-$(IntermediateDirectory)/bmp.c$(ObjectSuffix): bmp.c
+$(IntermediateDirectory)/bmp.c$(ObjectSuffix): bmp.c $(IntermediateDirectory)/bmp.c$(DependSuffix)
+	$(CC) $(SourceSwitch) "/home/kaid/test_ffmpeg/ffmpeg_tools/tool/bmp.c" $(CFLAGS) $(ObjectSwitch)$(IntermediateDirectory)/bmp.c$(ObjectSuffix) $(IncludePath)
+$(IntermediateDirectory)/bmp.c$(DependSuffix): bmp.c
 	@$(CC) $(CFLAGS) $(IncludePath) -MG -MP -MT$(IntermediateDirectory)/bmp.c$(ObjectSuffix) -MF$(IntermediateDirectory)/bmp.c$(DependSuffix) -MM bmp.c
-	$(CC) $(SourceSwitch) "/home/kaid/encoding/tool/bmp.c" $(CFLAGS) $(ObjectSwitch)$(IntermediateDirectory)/bmp.c$(ObjectSuffix) $(IncludePath)
+
 $(IntermediateDirectory)/bmp.c$(PreprocessSuffix): bmp.c
 	$(CC) $(CFLAGS) $(IncludePath) $(PreprocessOnlySwitch) $(OutputSwitch) $(IntermediateDirectory)/bmp.c$(PreprocessSuffix) bmp.c
 
