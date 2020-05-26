@@ -1,0 +1,4 @@
+tool/Debug/
+tool/tool.mk
+tool/tool.txt
+tool/compile_flags.txt

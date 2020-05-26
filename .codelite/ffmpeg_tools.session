@@ -5,21 +5,21 @@
   <TabInfoArray Name="TabInfoArray">
     <TabInfo>
       <wxString Value="/home/kaid/test_ffmpeg/ffmpeg_tools/tool/main.c" Name="FileName"/>
-      <int Value="26" Name="FirstVisibleLine"/>
-      <int Value="27" Name="CurrentLine"/>
+      <int Value="81" Name="FirstVisibleLine"/>
+      <int Value="94" Name="CurrentLine"/>
       <wxArrayString Name="Bookmarks"/>
       <IntVector Name="CollapsedFolds"/>
     </TabInfo>
     <TabInfo>
       <wxString Value="/home/kaid/test_ffmpeg/ffmpeg_tools/tool/bmp.c" Name="FileName"/>
-      <int Value="324" Name="FirstVisibleLine"/>
-      <int Value="338" Name="CurrentLine"/>
+      <int Value="328" Name="FirstVisibleLine"/>
+      <int Value="343" Name="CurrentLine"/>
       <wxArrayString Name="Bookmarks"/>
       <IntVector Name="CollapsedFolds"/>
     </TabInfo>
     <TabInfo>
       <wxString Value="/home/kaid/test_ffmpeg/ffmpeg_tools/tool/bmp.h" Name="FileName"/>
-      <int Value="36" Name="FirstVisibleLine"/>
+      <int Value="49" Name="FirstVisibleLine"/>
       <int Value="70" Name="CurrentLine"/>
       <wxArrayString Name="Bookmarks"/>
       <IntVector Name="CollapsedFolds"/>
@@ -28,4 +28,5 @@
   <SerializedObject Name="m_breakpoints">
     <long Value="0" Name="Count"/>
   </SerializedObject>
+  <wxString Value="*.c;*.cpp;*.cxx;*.cc;*.h;*.hpp;*.inc;*.mm;*.m;*.xrc" Name="m_findInFilesMask"/>
 </Session>

@@ -74,16 +74,13 @@ pict_t *load_frames(const char *filename, size_t num)
 //		break;
 	}
 	
-	if (cur_filename)
-		free(cur_filename);
+	free(cur_filename);
 	
 	return data;
 	
 err:
-	if (cur_filename)
-		free(cur_filename);
-	if (cur_pict)
-		free(cur_pict);
+	free(cur_filename);
+	free(cur_pict);
 	
 	return NULL;
 }

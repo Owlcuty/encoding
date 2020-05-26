@@ -67,7 +67,7 @@ int get_filesize_debug(FILE* file, const char* filename)
 	return filesize;
 }
 
-unsigned char bitextract(const DWORD byte, const DWORD mask)
+uint8_t bitextract(const DWORD byte, const DWORD mask)
 {
 	if (mask == 0)
 	{
@@ -101,8 +101,8 @@ pict_t load_bmp(const char* filename,
 	*width  = -1;
 	*height = -1;
 	
-	unsigned char	*tmp_buf	= NULL;
-	char			*buffer		= NULL;
+	uint8_t			*tmp_buf	= NULL;
+	uint8_t			*buffer		= NULL;
 	pict_t			frame		= NULL;
 	
 	FILE *file = fopen(filename, "rb");
@@ -136,7 +136,7 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
-	buffer = (char*)calloc(filesize, sizeof(*buffer));
+	buffer = (uint8_t*)calloc(filesize, sizeof(*buffer));
 	if (!buffer)
 	{
 		perror("calloc() failed");
@@ -152,7 +152,7 @@ pict_t load_bmp(const char* filename,
 	
 	BMPHDUMP(&bmph);
 	
-	char *cur_pos = buffer;
+	uint8_t *cur_pos = buffer;
 	
 	if (bmph.bfSize			!= filesize	||
 		bmph.bfReserved1	!= 0		||
@@ -304,7 +304,7 @@ pict_t load_bmp(const char* filename,
 	
 	int mwidth = (3 * (*width) + 3) & (-4);
 	
-	tmp_buf = (unsigned char*)calloc(bmpinfo.biSizeImage, sizeof(*tmp_buf));
+	tmp_buf = (uint8_t*)calloc(bmpinfo.biSizeImage, sizeof(*tmp_buf));
 	if (!tmp_buf)
 	{
 		perror("calloc() failed");
@@ -341,11 +341,11 @@ pict_t load_bmp(const char* filename,
 	}
 	
 	// BGR -> RGB
-	unsigned char* ptr = (unsigned char*)frame;
-	for (int y = *height - 1; y >= 0; y--)
+	uint8_t* ptr = (uint8_t*)frame;
+	for (size_t y = *height; y > 0; y--)
 	{
-		unsigned char *pRow = tmp_buf + mwidth * y;
-		for (int x = 0; x < *width; x++)
+		unsigned char *pRow = tmp_buf + mwidth * (y - 1);
+		for (size_t x = 0; x < *width; x++)
 		{
 			*ptr++ = *(pRow + 2);
 			*ptr++ = *(pRow + 1);
@@ -356,22 +356,17 @@ pict_t load_bmp(const char* filename,
 	}
 	
 	
-	if (tmp_buf)
-		free(tmp_buf);
-	if (buffer)
-		free(buffer);
+	free(tmp_buf);
+	free(buffer);
 	
 	fclose(file);
 	
 	return frame;
 	
 err:
-	if (tmp_buf)
-		free(tmp_buf);
-	if (buffer)
-		free(buffer);
-	if (frame)
-		free(frame);
+	ree(tmp_buf);
+	free(buffer);
+	free(frame);
 	
 	fclose(file);
 	
