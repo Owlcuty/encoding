@@ -364,7 +364,7 @@ pict_t load_bmp(const char* filename,
 	return frame;
 	
 err:
-	ree(tmp_buf);
+	free(tmp_buf);
 	free(buffer);
 	free(frame);
 	
