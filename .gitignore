@@ -1,4 +1,0 @@
-.gitignore
-tool/Debug/
-tool/tool.*
-tool/compile_flags.txt
