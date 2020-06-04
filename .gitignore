@@ -1,4 +1,4 @@
+.gitignore
 tool/Debug/
-tool/tool.mk
-tool/tool.txt
+tool/tool.*
 tool/compile_flags.txt

@@ -101,10 +101,12 @@ err:
 	return NULL;
 }
 
-//errno_t fill_avframe(AVFrame *frame, pict_t pict)
-//{
-//	for (int y = 0; y < )
-//}
+#if 0
+errno_t fill_avframe(AVFrame *frame, pict_t pict)
+{
+	for (int y = 0; y < )
+}
+#endif
 
 AVFrame *picture, *tmp_picture;
 uint8_t *video_outbuf;
@@ -398,14 +400,16 @@ int main(int argc, char **argv)
 	const char  *filename	= "output.mp4",
 				*codec_name = "libvpx-vp9";
 	
-//	if (argc <= 2)
-//	{
-//		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
-//		errno = EINVAL;
-//		goto err;
-//	}
-//	filename	= argv[1];
-//	codec_name	= argv[2];
+#if 0
+	if (argc <= 2)
+	{
+		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
+		errno = EINVAL;
+		goto err;
+	}
+	filename	= argv[1];
+	codec_name	= argv[2];
+#endif
 	
 	AVFormatContext *oc;
 	oc = avformat_alloc_context();
