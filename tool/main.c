@@ -457,6 +457,7 @@ int main(int argc, char **argv)
 		goto err;
 	}
 	
+	
 	ctx = avcodec_alloc_context3(codec);
 	if (!ctx)
 	{
