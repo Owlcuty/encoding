@@ -1,4 +1,4 @@
-#include <stdio.h>
+ #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -28,6 +28,8 @@
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P
 
+#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format, __LINE__, __FILENAME__, __PRETTY_FUNCTION__, __VA_ARGS__)
+
 static int sws_flags = SWS_BICUBIC;
 
 
@@ -56,7 +58,8 @@ pict_t *load_frames(const char *filename, size_t num)
 		cur_pict = load_bmp((const char*)cur_filename, &width, &height);
 		if (!cur_pict)
 		{
-			fprintf(stderr, "%d::\"%s\":%s:: Bad loading bmp\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+			//fprintf(stderr, "%d::\"%s\":%s:: Bad loading bmp\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
+			ERRPRINTF("Bad loading bmp\n");
 			goto err;
 		}
 		
@@ -122,7 +125,8 @@ static AVStream *add_video_stream(AVFormatContext *oc, enum AVCodecID codec_id)
 	st = av_new_stream(oc, 0);
 	if (!st)
 	{
-		fprintf(stderr, "%d::%s:: Could not alloc stream\n", __LINE__, __FILENAME__);
+//		fprintf(stderr, "%d::%s:: Could not alloc stream\n", __LINE__, __FILENAME__);
+		ERRPRINTF("Could not alloc stream\n");
 		exit(1);
 	}
 	
@@ -164,6 +168,55 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 	avpicture_fill((AVPicture *)picture, pic_buf, pix_fmt, width, height);
 	
 	return picture;
+}
+
+static void open_video(AVFormatContext *oc, AVStream *st)
+{
+	assert(oc);
+	assert(st);
+	
+	AVCodec			*codec	= NULL;
+	AVCodecContext	*ctx	= NULL;
+	
+	ctx = st->codec;
+	
+	codec = avcodec_find_encoder(ctx->codec_id);
+	if (!codec)
+	{
+		ERRPRINTF("Could not found\n");
+		exit(1);
+	}
+	
+	if (avcodec_open(ctx, codec) < 0) // exists?
+	{
+		ERRPRINTF("Could not open codec\n");
+		exit(1);
+	}
+	
+	video_outbuf = NULL;
+	if (!(oc->oformat->flags & AVFMT_RAWPICTURE)) // Where is AVFMT_RAWPICTURE ? Why not found ?
+	{
+		video_outbuf_size = 200000;
+		video_outbuf = av_malloc(video_outbuf_size);
+	}
+	
+	picture = alloc_picture(ctx->pix_mft, ctx->width, ctx->height);
+	if (!picture)
+	{
+		ERRPRINTF("Could not allocate picture\n");
+		exit(1);
+	}
+	
+	tmp_picture = NULL;
+	if (ctx->pix_fmt != PIX_FMT_YUV420P)
+	{
+		tmp_picture = alloc_picture(PIX_FMT_YUV420P, ctx->width, ctx->height);
+		if (!tmp_picture)
+		{
+			ERRPRINTF("Could not allocate temporary picture\n");
+			exit(1);
+		}
+	}
 }
 
 static void fill_yuv_image(AVFrame *pict, int frame_index, int width, int height)
@@ -214,7 +267,8 @@ static void write_video_frame(AVFormatContext *oc, AVStream *st)
 												 sws_flags, NULL, NULL, NULL);
 				if (img_convert_ctx == NULL)
 				{
-					fprintf(stderr, "%d::%s:: Cannot initialize the conversion context\n", __LINE__, __FILENAME__);
+//					fprintf(stderr, "%d::%s:: Cannot initialize the conversion context\n", __LINE__, __FILENAME__);
+					ERRPRINTF("Cannot initialize the conversion context\n");
 					exit(1);
 				}
 			}
@@ -291,7 +345,8 @@ errno_t encode(AVCodecContext *ctx, AVFrame *frame, int ret, FILE* file)
 		ret = avcodec_encode_video2(ctx, &pkt, frame, &got_output);
 		if (ret < 0)
 		{
-			fprintf(stderr, "Error encoding frame\n");
+//			fprintf(stderr, "Error encoding frame\n");
+			ERRPRINTF("Error encoding frame\n");
 			return -1;
 		}
 		
@@ -310,7 +365,8 @@ errno_t encode(AVCodecContext *ctx, AVFrame *frame, int ret, FILE* file)
 		ret = avcodec_encode_video2(ctx, &pkt, NULL, &got_output);
 		if (ret < 0)
 		{
-			fprintf(stderr, "Error encodeing frame\n");
+//			fprintf(stderr, "Error encodeing frame\n");
+			ERRPRINTF("Error encoding frame\n");
 			return -1;
 		}
 		
@@ -349,7 +405,8 @@ errno_t init_tool(FILE* file,
 	
 	if (avcodec_open2(ctx, codec, NULL) < 0)
 	{
-		fprintf(stderr, "Could not open codec\n");
+//		fprintf(stderr, "Could not open codec\n");
+		ERRPRINTF("Could not open codec\n");
 		errno = -1;
 		goto err;
 	}
@@ -357,7 +414,8 @@ errno_t init_tool(FILE* file,
 	AVFrame *frame = av_frame_alloc();
 	if (!frame)
 	{
-		fprintf(stderr, "Could not allocate video frame\n");
+//		fprintf(stderr, "Could not allocate video frame\n");
+		ERRPRINTF("Could not allocate video frame\n");
 		errno = ENOMEM;
 		goto err;
 	}
@@ -369,7 +427,8 @@ errno_t init_tool(FILE* file,
 //	int ret = av_image_alloc(frame->data, frame->linesize, ctx->width, ctx->height, ctx->pix_fmt, 32);
 	if (ret < 0)
 	{
-		fprintf(stderr, "Could not allocate the video frame data\n");
+//		fprintf(stderr, "Could not allocate the video frame data\n");
+		ERRPRINTF("Could not allocate the video frame data\n");
 		errno = ENOMEM;
 		goto err;
 	}
@@ -385,13 +444,29 @@ errno_t init_tool(FILE* file,
 		return errno;
 }
 
+static void close_video(AVFormatContext *oc, AVStream *st) // ? oc ?
+{
+	assert(st != NULL);
+	
+	avcodec_close(st->codec);
+	av_free(picture->data[0]);
+	av_free(picture);
+	if (tmp_picture)
+	{
+		av_free(tmp_picture->data[0]);
+		av_free(tmp_picture);
+	}
+	av_free(video_outbuf);
+}
+
 
 int main(int argc, char **argv)
 {
 	pict_t *frames = load_frames("../forbmp/image%03d.bmp", 250);
 	if (!frames)
 	{
-		fprintf(stderr, "%d:: Ban\n", __LINE__);
+//		fprintf(stderr, "%d:: Ban\n", __LINE__);
+		ERRPRINTF("Bad loading frames\n");
 		return 0;
 	}
 //	const char  *filename	= NULL,
@@ -403,7 +478,8 @@ int main(int argc, char **argv)
 #if 0
 	if (argc <= 2)
 	{
-		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
+//		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
+		ERRPRINTF("Usage: %s <output file> <codec name>\n", argv[0]);
 		errno = EINVAL;
 		goto err;
 	}
@@ -415,7 +491,8 @@ int main(int argc, char **argv)
 	oc = avformat_alloc_context();
 	if (!oc)
 	{
-		fprintf(stderr, "%d:: Memory error\n", __LINE__);
+//		fprintf(stderr, "%d:: Memory error\n", __LINE__);
+		ERRPRINTF("Memory error\n");
 		goto err;
 	}
 	snprintf(oc->filename, sizeof(oc->filename), "%s", filename);
@@ -431,12 +508,27 @@ int main(int argc, char **argv)
 	}
 	if (!fmt)
 	{
-		fprintf(stderr, "%d:: Could not find suitable output format\n", __LINE__);
+//		fprintf(stderr, "%d:: Could not find suitable output format\n", __LINE__);
+		ERRPRINTF("Could not find suitable output format\n");
 		goto err;
 	}
 	oc->oformat = fmt;
 	
+	AVStream *video_st = NULL;
 	
+	if (fmt->video_codec != CODEC_ID_NONE)
+	{
+		video_st = add_video_stream(oc, fmt->video_codec);
+	}
+	
+	if (av_set_parameters(oc, NULL) < 0)
+	{
+//		fprintf(stderr, "%d::%s Invalid output format parameters\n", __LINE__);
+		ERRPRINTF("Invalid output format parameters\n");
+		exit(1);
+	}
+	
+	av_dump_format(oc, 0, filename, 1);
 	
 	if (fmt->video_codec != AV_CODEC_ID_NONE) {
         add_stream(&video_st, oc, &video_codec, fmt->video_codec);
@@ -452,7 +544,8 @@ int main(int argc, char **argv)
 	codec = avcodec_find_encoder_by_name(codec_name);
 	if (!codec)
 	{
-		fprintf(stderr, "Codec not found\n");
+//		fprintf(stderr, "Codec not found\n");
+		ERRPRINTF("Codec not found\n");
 		errno = EINVAL;
 		goto err;
 	}
@@ -461,7 +554,8 @@ int main(int argc, char **argv)
 	ctx = avcodec_alloc_context3(codec);
 	if (!ctx)
 	{
-		fprintf(stderr, "Could not allocate video codec context");
+//		fprintf(stderr, "Could not allocate video codec context");
+		ERRPRINTF("Could not allocate video codec context\n");
 		errno = ENOMEM;
 		goto err;
 	}
@@ -471,7 +565,8 @@ int main(int argc, char **argv)
 	FILE* file = fopen(filename, "wb");
 	if (!file)
 	{
-		fprintf(stderr, "Could not open %s\n", filename);
+//		fprintf(stderr, "Could not open %s\n", filename);
+		ERRPRINTF("Could not open %s\n", filename);
 		errno = ENOENT;
 		goto err;
 	}
