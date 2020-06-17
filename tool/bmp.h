@@ -22,8 +22,8 @@
 #endif
 
 
-typedef int  errno_t;
-typedef int* pict_t;
+typedef int		 errno_t;
+typedef int*	pict_t;
 
 /* names by WinAPI */
 typedef uint8_t		BYTE;	//1
