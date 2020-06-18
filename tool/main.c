@@ -122,52 +122,9 @@ err:
 	return NULL;
 }
 
-#if 0
-errno_t fill_avframe(AVFrame *frame, pict_t pict)
-{
-	for (int y = 0; y < )
-}
-#endif
-
 AVFrame *picture, *tmp_picture;
 uint8_t *video_outbuf;
-int frame_count, video_outbuf_size;
-
-#if 0
-static AVStream *add_video_stream(AVFormatContext *oc, enum AVCodecID codec_id)
-{
-	assert(oc);
-	
-	AVCodecContext *ctx = NULL;
-	AVStream *st = NULL;
-	
-	st = av_new_stream(oc, 0);
-	if (!st)
-	{
-//		fprintf(stderr, "%d::%s:: Could not alloc stream\n", __LINE__, __FILENAME__);
-		ERRPRINTF("Could not alloc stream\n");
-		exit(1);
-	}
-	
-	ctx = st->codec;
-	ctx->codec_id = codec_id;
-	ctx->codec_type = AVMEDIA_TYPE_VIDEO;
-	
-	ctx->bit_rate = 4;
-	
-	ctx->width	= 640;
-	ctx->height	= 360;
-	
-	ctx->time_base.den = STREAM_FRAME_RATE;
-	ctx->time_base.num = 1;
-	
-	ctx->gop_size = 12;
-	ctx->pix_fmt = STREAM_PIX_FMT;
-	
-	return st;
-}
-#endif
-
+int video_outbuf_size;
 
 static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 {
@@ -188,79 +145,6 @@ static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AV
 	log_packet(fmt_ctx, pkt);
 	return av_interleaved_write_frame(fmt_ctx, pkt);
 }
-
-#if 0
-static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
-{
-	AVFrame *picture;
-	uint8_t *pic_buf;
-	int size;
-	
-	picture = avcodec_alloc_frame();
-	if (!picture)
-		return NULL;
-		
-	size = avpicture_get_size(pix_fmt, width, height);
-	pic_buf = av_malloc(size);
-	if (!pic_buf)
-	{
-		av_free(picture);
-		return NULL;
-	}
-	avpicture_fill((AVPicture *)picture, pic_buf, pix_fmt, width, height);
-	
-	return picture;
-}
-
-static void open_video(AVFormatContext *oc, AVStream *st)
-{
-	assert(oc);
-	assert(st);
-	
-	AVCodec			*codec	= NULL;
-	AVCodecContext	*ctx	= NULL;
-	
-	ctx = st->codec;
-	
-	codec = avcodec_find_encoder(ctx->codec_id);
-	if (!codec)
-	{
-		ERRPRINTF("Could not found\n");
-		exit(1);
-	}
-	
-	if (avcodec_open(ctx, codec) < 0) // exists?
-	{
-		ERRPRINTF("Could not open codec\n");
-		exit(1);
-	}
-	
-	video_outbuf = NULL;
-	if (!(oc->oformat->flags & AVFMT_RAWPICTURE)) // Where is AVFMT_RAWPICTURE ? Why not found ?
-	{
-		video_outbuf_size = 2;
-		video_outbuf = av_malloc(video_outbuf_size);
-	}
-	
-	picture = alloc_picture(ctx->pix_fmt, ctx->width, ctx->height);
-	if (!picture)
-	{
-		ERRPRINTF("Could not allocate picture\n");
-		exit(1);
-	}
-	
-	tmp_picture = NULL;
-	if (ctx->pix_fmt != AV_PIX_FMT_YUV420P)
-	{
-		tmp_picture = alloc_picture(AV_PIX_FMT_YUV420P, ctx->width, ctx->height);
-		if (!tmp_picture)
-		{
-			ERRPRINTF("Could not allocate temporary picture\n");
-			exit(1);
-		}
-	}
-}
-#endif
 
 static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 {
@@ -316,23 +200,35 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 
 static void fill_yuv_image(AVFrame *pict, int width, int height, pict_t bmp)
 {
-	uint8_t *ptr = (uint8_t*)bmp;
-	double	Y = 0,
-			U = 0,
-			V = 0;
+	int R = 0,
+		G = 0,
+		B = 0;
+	
+	uint8_t *ptr = (uint8_t *)bmp;
+	
 	for (size_t y = 0; y < height; y++)
 	{
 		for (size_t x = 0; x < width; x++)
 		{
-//	ERRPRINTF("--------------- TRUBLES?? ---------------");
-			pict->data[0][y * pict->linesize[0] + x] = *ptr++;
-//	ERRPRINTF("--------------- TRUBLES?? ---------------");
-//			bmp++;
-			pict->data[1][y * pict->linesize[1] + x] = *ptr++;
-//	ERRPRINTF("--------------- TRUBLES?? ---------------");
-//			bmp++;
-			pict->data[2][y * pict->linesize[2] + x] = *ptr++;
-//	ERRPRINTF("--------------- TRUBLES?? ---------------");
+			R = *ptr++;
+			B = *ptr++;
+			G = *ptr++;
+			pict->data[0][y * pict->linesize[0] + x] = 0.299 * R + 0.587 * G + 0.114 * B;
+			ptr++;
+		}
+	}
+	
+	ptr = (uint8_t *)bmp;
+	
+	for (size_t y = 0; y < height / 2; y++)
+	{
+		for (size_t x = 0; x < width / 2; x++)
+		{
+			R = *ptr++;
+			B = *ptr++;
+			G = *ptr++;
+			pict->data[1][y * pict->linesize[1] + x] = 128 - 0.168736 * R - 0.331264 * G + 0.500000 * B;
+			pict->data[2][y * pict->linesize[2] + x] = 128 + 0.500000 * R - 0.418688 * G - 0.081312 * B;
 			ptr++;
 		}
 	}
@@ -417,254 +313,34 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
         c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 }
 
-#if 0
-static void write_video_frame(AVFormatContext *oc, AVStream *st)
-{
-	assert(oc != NULL);
-	assert(st != NULL);
-	
-	int out_size = 0,
-		ret		 = 0;
-	
-	AVCodecContext *ctx = NULL;
-	static struct SwsContext *img_convert_ctx;
-	
-	ctx = st->codec;
-	
-	if (frame_count < STREAM_NB_FRAMES)
-	{
-		if (ctx->pix_fmt != AV_PIX_FMT_YUV420P)
-		{
-			if (img_convert_ctx == NULL)
-			{
-				img_convert_ctx = sws_getContext(ctx->width, ctx->height,
-												 AV_PIX_FMT_YUV420P,
-												 ctx->width, ctx->height,
-												 ctx->pix_fmt,
-												 sws_flags, NULL, NULL, NULL);
-				if (img_convert_ctx == NULL)
-				{
-//					fprintf(stderr, "%d::%s:: Cannot initialize the conversion context\n", __LINE__, __FILENAME__);
-					ERRPRINTF("Cannot initialize the conversion context\n");
-					exit(1);
-				}
-			}
-			fill_yuv_image(tmp_picture, frame_count, ctx->width, ctx->height);
-			sws_scale(img_convert_ctx, tmp_picture->data, tmp_picture->linesize,
-					  0, ctx->height, picture->data, picture->linesize);
-		}
-		else
-			fill_yuv_image(picture, frame_count, ctx->width, ctx->height);
-	}
-	
-	if (oc->oformat->flags & AVFMT_NOFILE)
-	{
-		AVPacket pkt;
-		av_init_packet(&pkt);
-		
-		pkt.flags |= AV_PKT_FLAG_KEY;
-		pkt.stream_index = st->index;
-		pkt.data = (uint8_t *)picture;
-		pkt.size = sizeof(AVPicture);
-		
-		ret = av_interleaved_write_frame(oc, &pkt);
-	}
-	else
-	{
-		out_size = avcodec_encode_video(ctx, video_outbuf, video_outbuf_size, picture); // ?????????????????????????????????????????????????
-	}
-}
-#endif
-
-errno_t encode(AVCodecContext *ctx, AVFrame *frame, int ret, FILE* file)
-{
-	AVPacket pkt;
-	uint8_t endcode[] = { 0, 0, 1, 0xb7 };
-	
-	int got_output = 0;
-
-	int i;
-	for (i = 0; i < 25; i ++)
-	{
-		av_init_packet(&pkt);
-		pkt.data = NULL;
-		pkt.size = 0;
-		
-		fflush(stdout); // Check without
-		
-		ret = av_frame_make_writable(frame);
-		if (ret < 0)
-		{
-			return -1;
-		}
-		
-		for (size_t y = 0; y < ctx->height; y++)
-		{
-			for (size_t x = 0; x < ctx->width; x++)
-			{
-				frame->data[0][y * frame->linesize[0] + x] = x + y + i * 3;
-			}
-		}
-		
-		// fake data for test
-		for (size_t y = 0; y < ctx->height / 2; y++)
-		{
-			for (size_t x = 0; x < ctx->width / 2; x++)
-			{
-				frame->data[1][y * frame->linesize[1] + x] = 128 + y + i * 2;
-				frame->data[2][y * frame->linesize[2] + x] = 64 + x + i * 5; // Why?
-			}
-		}
-		
-		frame->pts = i;
-		
-		// encode the image
-		ret = avcodec_encode_video2(ctx, &pkt, frame, &got_output);
-		if (ret < 0)
-		{
-//			fprintf(stderr, "Error encoding frame\n");
-			ERRPRINTF("Error encoding frame\n");
-			return -1;
-		}
-		
-		if (got_output)
-		{
-			printf("%d:: Write frame %3d (size = %5d)\n", __LINE__, i, pkt.size);
-			fwrite(pkt.data, 1, pkt.size, file);
-			av_packet_unref(&pkt);
-		}
-	}
-	
-	for (got_output = 1; got_output; i++)
-	{
-		fflush(stdout);
-		
-		ret = avcodec_encode_video2(ctx, &pkt, NULL, &got_output);
-		if (ret < 0)
-		{
-//			fprintf(stderr, "Error encodeing frame\n");
-			ERRPRINTF("Error encoding frame\n");
-			return -1;
-		}
-		
-		if (got_output)
-		{
-			printf("%d:: Write frame %3d (size = %5d)\n", __LINE__, i, pkt.size);
-			fwrite(pkt.data, 1, pkt.size, file);
-			av_packet_unref(&pkt);
-		}
-	}
-	
-	fwrite(endcode, 1, sizeof(endcode), file);
-	
-	
-	return 0;
-}
-
-errno_t init_tool(FILE* file,
-				  AVCodec			*codec,
-				  AVCodecContext	*ctx,	int bit_rate,
-											int width, int height,
-											AVRational time_base, AVRational framerate,
-											int gop_size, int max_b_frames, enum AVPixelFormat pix_fmt)
-{
-	ctx->bit_rate = bit_rate;
-	
-	ctx->width  = width;
-	ctx->height = height;
-	
-	ctx->time_base = time_base;
-	ctx->framerate = framerate;
-	
-	ctx->gop_size		= gop_size;
-	ctx->max_b_frames	= max_b_frames;
-	ctx->pix_fmt		= pix_fmt;
-	
-	if (avcodec_open2(ctx, codec, NULL) < 0)
-	{
-//		fprintf(stderr, "Could not open codec\n");
-		ERRPRINTF("Could not open codec\n");
-		errno = -1;
-		goto err;
-	}
-	
-	AVFrame *frame = av_frame_alloc();
-	if (!frame)
-	{
-//		fprintf(stderr, "Could not allocate video frame\n");
-		ERRPRINTF("Could not allocate video frame\n");
-		errno = ENOMEM;
-		goto err;
-	}
-	frame->format = ctx->pix_fmt;
-	frame->width  = ctx->width;
-	frame->height = ctx->height;
-	
-	int ret = av_frame_get_buffer(frame, 32);
-//	int ret = av_image_alloc(frame->data, frame->linesize, ctx->width, ctx->height, ctx->pix_fmt, 32);
-	if (ret < 0)
-	{
-//		fprintf(stderr, "Could not allocate the video frame data\n");
-		ERRPRINTF("Could not allocate the video frame data\n");
-		errno = ENOMEM;
-		goto err;
-	}
-	
-	encode(ctx, frame, ret, file);
-	
-	av_frame_free(&frame);
-	
-	return 0;
-	
-	err:
-		av_frame_free(&frame);
-		return errno;
-}
-
 static AVFrame *get_video_frame(OutputStream *ost, pict_t bmp)
 {
     AVCodecContext *c = ost->st->codec;
-	
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
     /* check if we want to generate more frames */
     if (av_compare_ts(ost->next_pts, ost->st->codec->time_base,
                       STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
         return NULL;
-		
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
     if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
         /* as we only generate a YUV420P picture, we must convert it
          * to the codec pixel format if needed */
-		 
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
         if (!ost->sws_ctx) {
             ost->sws_ctx = sws_getContext(c->width, c->height,
                                           AV_PIX_FMT_YUV420P,
                                           c->width, c->height,
                                           c->pix_fmt,
                                           SCALE_FLAGS, NULL, NULL, NULL);
-										  
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
             if (!ost->sws_ctx) {
                 fprintf(stderr,
                         "Could not initialize the conversion context\n");
                 exit(1);
             }
         }
-		
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
         fill_yuv_image(ost->tmp_frame, c->width, c->height, bmp);
-		
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
         sws_scale(ost->sws_ctx,
                   (const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
                   0, c->height, ost->frame->data, ost->frame->linesize);
     } else {
-		
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
         fill_yuv_image(ost->frame, c->width, c->height, bmp);
-		
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
     }
     ost->frame->pts = ost->next_pts++;
     return ost->frame;
@@ -682,11 +358,8 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, pict_t bmp)
     int got_packet = 0;
     c = ost->st->codec;
     frame = get_video_frame(ost, bmp);
-	
-	ERRPRINTF("-- TRUBLES?? ---------");
     if (oc->oformat->flags & AVFMT_RAWPICTURE) {
         /* a hack to avoid data copy with some raw video muxers */
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
         AVPacket pkt;
         av_init_packet(&pkt);
         if (!frame)
@@ -698,13 +371,11 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, pict_t bmp)
         pkt.pts = pkt.dts = frame->pts;
         av_packet_rescale_ts(&pkt, c->time_base, ost->st->time_base);
         ret = av_interleaved_write_frame(oc, &pkt);
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
     } else {
         AVPacket pkt = { 0 };
         av_init_packet(&pkt);
         /* encode the image */
         ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
         if (ret < 0) {
             fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
             exit(1);
@@ -714,7 +385,6 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, pict_t bmp)
         } else {
             ret = 0;
         }
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
     }
     if (ret < 0) {
         fprintf(stderr, "Error while writing video frame: %s\n", av_err2str(ret));
@@ -864,11 +534,10 @@ int main(int argc, char **argv)
 	}
 	
 	pict_t *bmp = frames;
+	
 	while (encode_video)
 	{
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
 		encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
-	ERRPRINTF("--------------- TRUBLES?? ---------------");
 	}
 	
 	av_write_trailer(oc);
