@@ -22,10 +22,11 @@
 #include <libswresample/swresample.h>
 
 #define STREAM_DURATION   10.0
-#define STREAM_FRAME_RATE 25 /* 25 images/s */
+#define STREAM_FRAME_RATE 25 /* 25 fps */
 #define STREAM_PIX_FMT    AV_PIX_FMT_YUV420P /* default pix_fmt */
-#define SCALE_FLAGS SWS_BICUBIC
+#define SCALE_FLAGS 0
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
+
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
 	AVStream *st;
@@ -48,8 +49,7 @@ typedef struct OutputStream {
 #define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
 #define AVFMT_RAWPICTURE 0x0020
 
-static int sws_flags = SWS_BICUBIC;
-
+//#define MAIN_DEBUG_SESSION
 
 typedef int errno_t;
 
@@ -89,13 +89,13 @@ pict_t *load_frames(const char *filename, size_t num)
 				perror("calloc() load_frames::data failed");
 				goto err;
 			}
-#ifdef BMP_DEBUG_SESSION
+#ifdef MAIN_DEBUG_SESSION
 			printf("%s::%d::%s:: For data was alloced %d bytes\n", __FILENAME__, __LINE__, __PRETTY_FUNCTION__, width * height * num);
 #endif
 			cur_pos = data;
 		}
 		
-#ifdef BMP_DEBUG_SESSION
+#ifdef MAIN_DEBUG_SESSION
 	printf("%d::%s::%s Data [%X] -- Cur_pos [%X]. Width {%d}, Height {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
 							data,		cur_pos,
 														width,		height);
@@ -211,8 +211,8 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, pict_t bmp)
 		for (size_t x = 0; x < width; x++)
 		{
 			R = *ptr++;
-			B = *ptr++;
 			G = *ptr++;
+			B = *ptr++;
 			pict->data[0][y * pict->linesize[0] + x] = 0.299 * R + 0.587 * G + 0.114 * B;
 			ptr++;
 		}
@@ -225,8 +225,8 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, pict_t bmp)
 		for (size_t x = 0; x < width / 2; x++)
 		{
 			R = *ptr++;
-			B = *ptr++;
 			G = *ptr++;
+			B = *ptr++;
 			pict->data[1][y * pict->linesize[1] + x] = 128 - 0.168736 * R - 0.331264 * G + 0.500000 * B;
 			pict->data[2][y * pict->linesize[2] + x] = 128 + 0.500000 * R - 0.418688 * G - 0.081312 * B;
 			ptr++;
@@ -296,7 +296,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
         c->pix_fmt       = STREAM_PIX_FMT;
         if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
             /* just for testing, we also add B frames */
-            c->max_b_frames = 2;
+            c->max_b_frames = 1;
         }
         if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
             /* Needed to avoid using macroblocks in which some coeffs overflow.
@@ -393,21 +393,6 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, pict_t bmp)
     return (frame || got_packet) ? 0 : 1;
 }
 
-static void close_video(AVFormatContext *oc, AVStream *st) // ? oc ?
-{
-	assert(st != NULL);
-	
-	avcodec_close(st->codec);
-	av_free(picture->data[0]);
-	av_free(picture);
-	if (tmp_picture)
-	{
-		av_free(tmp_picture->data[0]);
-		av_free(tmp_picture);
-	}
-	av_free(video_outbuf);
-}
-
 static void close_stream(AVFormatContext *oc, OutputStream *ost)
 {
     avcodec_close(ost->st->codec);
@@ -419,30 +404,15 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 
 int main(int argc, char **argv)
 {
-	pict_t *frames = load_frames("../forbmp/image%03d.bmp", 250);
+	pict_t *frames = load_frames("../../../copy_bmps/img%03d.bmp", 250);
 	if (!frames)
 	{
-//		fprintf(stderr, "%d:: Ban\n", __LINE__);
 		ERRPRINTF("Bad loading frames\n");
 		return 0;
 	}
-//	const char  *filename	= NULL,
-//				*codec_name = NULL;
 	
-	const char  *filename	= "output.mp4",
-				*codec_name = "libvpx-vp9";
-	
-#if 0
-	if (argc <= 2)
-	{
-//		fprintf(stderr, "Usage: %s <output file> <codec name>\n", argv[0]);
-		ERRPRINTF("Usage: %s <output file> <codec name>\n", argv[0]);
-		errno = EINVAL;
-		goto err;
-	}
-	filename	= argv[1];
-	codec_name	= argv[2];
-#endif
+	const char  *filename	= "output.mp4";
+//				*codec_name = "libvpx-vp9";
 	
 	OutputStream video_st = { 0 };
 	
@@ -472,16 +442,13 @@ int main(int argc, char **argv)
 	fmt = oc->oformat;
 	if (!fmt)
 	{
-#ifdef BMP_DEBUG_SESSION
-		printf("%d:: Could not deduce output format from file extension: using MPEG.\n");
-#endif
+		printf("%d:: Could not deduce output format from file extension: using MPEG.");
 		fmt = av_guess_format("mpeg", NULL, NULL);
 		oc->oformat = fmt;
 	}
 	if (!fmt)
 	{
-//		fprintf(stderr, "%d:: Could not find suitable output format\n", __LINE__);
-		ERRPRINTF("Could not find suitable output format\n");
+		ERRPRINTF("Could not find suitable output format");
 		goto err;
 	}
 	
@@ -494,13 +461,6 @@ int main(int argc, char **argv)
 	
 	if (have_video)
 		open_video(oc, video_codec, &video_st, opt);
-	
-//	if (av_set_parameters(oc, NULL) < 0)
-//	{
-////		fprintf(stderr, "%d::%s Invalid output format parameters\n", __LINE__);
-//		ERRPRINTF("Invalid output format parameters\n");
-//		exit(1);
-//	}
 	
 	av_dump_format(oc, 0, filename, 1);
 	
@@ -550,10 +510,6 @@ int main(int argc, char **argv)
 		avio_closep(&oc->pb);
 	}
 	
-	
-//	fclose(file);
-//	avfree(oc);
-//	avcodec_free_context(&ctx);
 	avformat_free_context(oc);
 	
 	return 0;
@@ -563,95 +519,3 @@ err:
 	
 	return -1;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
-
-#include <stdio.h>
-
-#include <SDL/SDL.h>
-
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
-
-#include "bmp.h"
-
-
-#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
-#define IFERR(condition_err, format, ...)	if (condition_err)																		\
-{																													\
-	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__);	\
-	return -1;																										\
-}
-
-
-int main()
-{
-	// Register file formats and codecs
-	av_register_all();
-	
-	// Init SDL
-	int err;
-	err = SDL_Init(SDL_INIT_VIDEO);
-	IFERR(err < 0, "Unable to init SDL: %s", SDL_GetError());
-	
-	// Open video file
-	const char *filename = "../../../inp.mp4";
-	AVFormatContext* ctx = NULL;
-	err = avformat_open_input(&ctx, filename, NULL, NULL);
-	IFERR(err < 0, "ffmpeg: Unable to open input file");
-	
-	// Get stream information
-	err = avformat_find_stream_info(ctx, NULL);
-	IFERR(err < 0, "ffmpeg: Unable to find stram info");
-	
-	// Dump info
-	av_dump_format(ctx, 0, filename, 0);
-	
-	// Find 1st video stream
-	int video_stream = 0;
-	for (; video_stream < ctx->nb_streams; ++video_stream)
-	{
-		if (ctx->streams[video_stream]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
-		{
-			break;
-		}
-	}
-	IFERR(video_stream == ctx->nb_streams, "ffmpeg: Unable to find video stream");
-	
-	// Open codec
-	AVCodecContext *codec_ctx = ctx->streams[video_stream]->codec;
-	AVCodec *codec = avcodec_find_decoder(codec_ctx->codec_id);
-	err = avcodec_open2(codec_ctx, codec, NULL);
-	IFERR(err < 0, "ffmpeg: Unable to open codec");
-	
-	// Work with SDL
-	SDL_Surface *screen = SDL_SetVideoMode(codec_ctx->width, codec_ctx->height, 0, 0);
-	IFERR(screen == NULL, "sdl: Couldn't set video mode");
-	
-	SDL_Overlay* bmp = SDL_CreateYUVOverlay(codec_ctx->width, codec_ctx->height, SDL_YV12_OVERLAY, screen);
-	
-	
-	struct SwsContext *img_convert_context = sws_getContext(codec_ctx->width, codec_ctx->height,
-															codec_ctx->pix_fmt,
-															codec_ctx->width, codec_ctx->height,
-															AV_PIX_FMT_YUV420P, SWS_BICUBIC,
-															NULL, NULL, NULL);
-	IFERR(img_convert_context == NULL, "sdl: Cannot initialize the conversion context");
-}
-
-#endif

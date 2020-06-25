@@ -121,7 +121,9 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
+#ifdef BMP_DEBUG_SESSION
 	BMPHDUMP(&bmph);
+#endif
 	
 	if (bmph.bfType != 0x4D42)
 	{
@@ -129,7 +131,11 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
+#ifdef BMP_DEBUG_SESSION
 	int filesize = get_filesize_debug(file, filename);
+#else
+	int filesize = get_filesize(file);
+#endif
 	if (filesize == -1)
 	{
 		fprintf(stderr, "%d:: Bad read size of %s\n", __LINE__, filename);
@@ -149,8 +155,9 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
-	
+#ifdef BMP_DEBUG_SESSION
 	BMPHDUMP(&bmph);
+#endif
 	
 	uint8_t *cur_pos = buffer;
 	
@@ -297,7 +304,9 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
-	BMPINFODUMP(&bmpinfo);
+#ifdef BMP_DEBUG_SESSION
+	BMPHDUMP(&bmph);
+#endif
 	
 	*width  = bmpinfo.biWidth;
 	*height = bmpinfo.biHeight;
