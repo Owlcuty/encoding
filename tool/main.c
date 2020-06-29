@@ -76,7 +76,6 @@ pict_t *load_frames(const char *filename, size_t num)
 		cur_pict = load_bmp((const char*)cur_filename, &width, &height);
 		if (!cur_pict)
 		{
-			//fprintf(stderr, "%d::\"%s\":%s:: Bad loading bmp\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__);
 			ERRPRINTF("Bad loading bmp\n");
 			goto err;
 		}
@@ -101,14 +100,9 @@ pict_t *load_frames(const char *filename, size_t num)
 														width,		height);
 	printf("%d::%s::%s Cur_pict [%X] \n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, cur_pict);
 #endif
-//		memcpy(cur_pos, cur_pict, width * height * sizeof(int));
 		
 		*cur_pos = cur_pict;
 		cur_pos++;
-		
-//		cur_pos += width * height * sizeof(int);
-//		free(cur_pict);
-//		break;
 	}
 	
 	free(cur_filename);

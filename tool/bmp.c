@@ -25,17 +25,6 @@ void bmpinfo_dump(bitmapinfo_t *bmpinfo, const char* name)
 	printf("\t %20s = %8hu (size = %d) [%X]\n",	"biBitCount",	bmpinfo->biBitCount, sizeof(bmpinfo->biBitCount), &bmpinfo->biBitCount);
 	printf("\t %20s = %8d (size = %d) [%X]\n",	"biCompression",bmpinfo->biCompression, sizeof(bmpinfo->biCompression), &bmpinfo->biCompression);
 	printf("\t %20s = %8d (size = %d) [%X]\n",	"biSizeImage",	bmpinfo->biSizeImage, sizeof(bmpinfo->biSizeImage), &bmpinfo->biSizeImage);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
-//	printf("\t %20s = %8d (size = %d) [%X]\n",	"biBitCount",	bmpinfo->bfOffBits, sizeof(bmpinfo->bfOffBits), &bmpinfo->bfOffBits);
 	
 	printf("}\n---------------\n");
 }
@@ -174,15 +163,9 @@ pict_t load_bmp(const char* filename,
 	bitmapinfo_t bmpinfo;
 	memcpy(&bmpinfo.biSize, cur_pos, sizeof(bmpinfo.biSize));
 	cur_pos += sizeof(bmpinfo.biSize);
-//	fread(&bmpinfo.biSize, sizeof(bmpinfo.biSize), 1, file);
 	
 	if (bmpinfo.biSize >= 12)
 	{
-//		fread(&bmpinfo.biWidth,		sizeof(bmpinfo.biWidth),	1, file);
-//		fread(&bmpinfo.biHeight,	sizeof(bmpinfo.biSize),		1, file);
-//		fread(&bmpinfo.biPlanes,	sizeof(bmpinfo.biSize),		1, file);
-//		fread(&bmpinfo.biBitCount,	sizeof(bmpinfo.biSize),		1, file);
-//		
 		memcpy(&bmpinfo.biWidth, cur_pos, sizeof(bmpinfo.biWidth)); // Объединить в функцию "чтения"
 		cur_pos += sizeof(bmpinfo.biWidth);
 	
@@ -212,13 +195,6 @@ pict_t load_bmp(const char* filename,
 	
 	if (bmpinfo.biSize >= 40)
 	{
-//		fread(&bmpinfo.biCompression,	sizeof(bmpinfo.biCompression),		1, file);
-//		fread(&bmpinfo.biSizeImage,		sizeof(bmpinfo.biSizeImage),		1, file);
-//		fread(&bmpinfo.biXPelsPerMeter,	sizeof(bmpinfo.biXPelsPerMeter),	1, file);
-//		fread(&bmpinfo.biYPelsPerMeter,	sizeof(bmpinfo.biYPelsPerMeter),	1, file);
-//		fread(&bmpinfo.biClrUsed,		sizeof(bmpinfo.biClrUsed),			1, file);
-//		fread(&bmpinfo.biClrImportant,	sizeof(bmpinfo.biClrImportant),		1, file);
-
 		memcpy(&bmpinfo.biCompression, cur_pos, sizeof(bmpinfo.biCompression));
 		cur_pos += sizeof(bmpinfo.biCompression);
 
@@ -244,10 +220,6 @@ pict_t load_bmp(const char* filename,
 	
 	if (bmpinfo.biSize >= 52)
 	{
-//		fread(&bmpinfo.biRedMask,		sizeof(bmpinfo.biRedMask),		1, file);
-//		fread(&bmpinfo.biGreenMask,		sizeof(bmpinfo.biGreenMask),	1, file);
-//		fread(&bmpinfo.biBlueMask,		sizeof(bmpinfo.biBlueMask),		1, file);
-
 		memcpy(&bmpinfo.biRedMask, cur_pos, sizeof(bmpinfo.biRedMask));
 		cur_pos += sizeof(bmpinfo.biRedMask);
 
@@ -334,13 +306,7 @@ pict_t load_bmp(const char* filename,
 		printf("-->biSizeImage = {%d}\n", bmpinfo.biSizeImage);
 #endif
 	}
-//	res = fread(tmp_buf, mwidth * (*height), 1, file);
 	memcpy(tmp_buf, cur_pos, bmpinfo.biSizeImage);
-//	if (res != mwidth * (*height))
-//	{
-//		fprintf(stderr, "%d:: Bad reading %s\n", __LINE__, ARG_NAME(tmp_buf));
-//		goto err;
-//	}
 	
 	frame = (pict_t)calloc((*width) * (*height), sizeof(*frame));
 	if (!frame)
