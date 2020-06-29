@@ -1,7 +1,7 @@
 #pragma one
 
 #define ARG_NAME(arg) #arg
-#define BMP_DEBUG_SESSION
+//#define BMP_DEBUG_SESSION
 #define BMPHDUMP(bmph) bmph_dump(bmph, #bmph)
 #define BMPINFODUMP(bmpinfo) bmpinfo_dump(bmpinfo, #bmpinfo)
 

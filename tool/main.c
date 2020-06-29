@@ -18,9 +18,6 @@
 
 #include <libavformat/avformat.h>
 
-#include <libswscale/swscale.h>
-#include <libswresample/swresample.h>
-
 #define STREAM_DURATION		10.0
 #define STREAM_FRAME_RATE	25 /* 25 fps */
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
@@ -36,8 +33,6 @@ typedef struct OutputStream {
 	AVFrame *frame;
 	AVFrame *tmp_frame;
 	float t, tincr, tincr2;
-	struct SwsContext *sws_ctx;
-	struct SwrContext *swr_ctx;
 } OutputStream;
 
 
@@ -314,28 +309,7 @@ static AVFrame *get_video_frame(OutputStream *ost, pict_t bmp)
 	if (av_compare_ts(ost->next_pts, ost->st->codec->time_base,
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
-	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-		/* as we only generate a YUV420P picture, we must convert it
-         * to the codec pixel format if needed */
-		if (!ost->sws_ctx) {
-			ost->sws_ctx = sws_getContext(c->width, c->height,
-                                          AV_PIX_FMT_YUV420P,
-                                          c->width, c->height,
-                                          c->pix_fmt,
-                                          SCALE_FLAGS, NULL, NULL, NULL);
-			if (!ost->sws_ctx) {
-				fprintf(stderr,
-						"Could not initialize the conversion context\n");
-				exit(1);
-			}
-		}
-		fill_yuv_image(ost->tmp_frame, c->width, c->height, bmp);
-		sws_scale(ost->sws_ctx,
-                  (const uint8_t * const *)ost->tmp_frame->data, ost->tmp_frame->linesize,
-                  0, c->height, ost->frame->data, ost->frame->linesize);
-	} else {
-		fill_yuv_image(ost->frame, c->width, c->height, bmp);
-	}
+	fill_yuv_image(ost->frame, c->width, c->height, bmp);
 	ost->frame->pts = ost->next_pts++;
 	return ost->frame;
 }
@@ -392,8 +366,6 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 	avcodec_close(ost->st->codec);
 	av_frame_free(&ost->frame);
 	av_frame_free(&ost->tmp_frame);
-	sws_freeContext(ost->sws_ctx);
-	swr_free(&ost->swr_ctx);
 }
 
 int main(int argc, char **argv)
