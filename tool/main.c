@@ -23,7 +23,7 @@
 
 #define STREAM_DURATION		10.0
 #define STREAM_FRAME_RATE	25 /* 25 fps */
-#define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
+#define STREAM_PIX_FMT		AV_PIX_FMT_YUV411P /* default pix_fmt */
 #define SCALE_FLAGS			0
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 
@@ -178,12 +178,12 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 		fprintf(stderr, "Could not allocate video frame\n");
 		exit(1);
 	}
-	/* If the output format is not YUV420P, then a temporary YUV420P
+	/* If the output format is not YUV411P, then a temporary YUV411P
 	* picture is needed too. It is then converted to the required
 	* output format. */
 	ost->tmp_frame = NULL;
-	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
+	if (c->pix_fmt != AV_PIX_FMT_YUV411P) {
+		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV411P, c->width, c->height);
 		if (!ost->tmp_frame) {
 			fprintf(stderr, "Could not allocate temporary picture\n");
 			exit(1);
@@ -314,12 +314,12 @@ static AVFrame *get_video_frame(OutputStream *ost, pict_t bmp)
 	if (av_compare_ts(ost->next_pts, ost->st->codec->time_base,
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
-	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-		/* as we only generate a YUV420P picture, we must convert it
+	if (c->pix_fmt != AV_PIX_FMT_YUV411P) {
+		/* as we only generate a YUV411P picture, we must convert it
          * to the codec pixel format if needed */
 		if (!ost->sws_ctx) {
 			ost->sws_ctx = sws_getContext(c->width, c->height,
-                                          AV_PIX_FMT_YUV420P,
+                                          AV_PIX_FMT_YUV411P,
                                           c->width, c->height,
                                           c->pix_fmt,
                                           SCALE_FLAGS, NULL, NULL, NULL);

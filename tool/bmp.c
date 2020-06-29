@@ -5,11 +5,11 @@ void bmph_dump(bitmapfileheader_t *bmph, const char* name)
 {
 	printf("\n---------------\n");
 	printf("%s [%X]\n{\n", name, bmph);
-	printf("\t %20s = %8X (size = %d) [%X],\n",	"bfType",		bmph->bfType, sizeof(bmph->bfType), &bmph->bfType);
-	printf("\t %20s = %8d (size = %d) [%X],\n",	"bfSize",		bmph->bfSize, sizeof(bmph->bfSize), &bmph->bfSize);
-	printf("\t %20s = %8hu (size = %d) [%X],\n","bfReserved1",	bmph->bfReserved1, sizeof(bmph->bfReserved1), &bmph->bfReserved1);
-	printf("\t %20s = %8hu (size = %d) [%X],\n","bfReserved2",	bmph->bfReserved2, sizeof(bmph->bfReserved2), &bmph->bfReserved2);
-	printf("\t %20s = %8d (size = %d) [%X]\n",	"bfOffBits",	bmph->bfOffBits, sizeof(bmph->bfOffBits), &bmph->bfOffBits);
+	BMP_PRINT_DUMP_X(bmph->bfType);
+	BMP_PRINT_DUMP_D(bmph->bfSize);
+	BMP_PRINT_DUMP_HU(bmph->bfReserved1);
+	BMP_PRINT_DUMP_HU(bmph->bfReserved2);
+	BMP_PRINT_DUMP_D(bmph->bfOffBits);
 	
 	printf("}\n---------------\n");
 }
@@ -18,13 +18,14 @@ void bmpinfo_dump(bitmapinfo_t *bmpinfo, const char* name)
 {
 	printf("\n---------------\n");
 	printf("%s [%X]\n{\n", name, bmpinfo);
-	printf("\t %20s = %8d (size = %d) [%X],\n",	"biSize",		bmpinfo->biSize, sizeof(bmpinfo->biSize), &bmpinfo->biSize);
-	printf("\t %20s = %8d (size = %d) [%X],\n",	"biWidth",		bmpinfo->biWidth, sizeof(bmpinfo->biWidth), &bmpinfo->biWidth);
-	printf("\t %20s = %8d (size = %d) [%X],\n",	"biHeight",		bmpinfo->biHeight, sizeof(bmpinfo->biHeight), &bmpinfo->biHeight);
-	printf("\t %20s = %8hu (size = %d) [%X],\n","biPlanes",		bmpinfo->biPlanes, sizeof(bmpinfo->biPlanes), &bmpinfo->biPlanes);
-	printf("\t %20s = %8hu (size = %d) [%X]\n",	"biBitCount",	bmpinfo->biBitCount, sizeof(bmpinfo->biBitCount), &bmpinfo->biBitCount);
-	printf("\t %20s = %8d (size = %d) [%X]\n",	"biCompression",bmpinfo->biCompression, sizeof(bmpinfo->biCompression), &bmpinfo->biCompression);
-	printf("\t %20s = %8d (size = %d) [%X]\n",	"biSizeImage",	bmpinfo->biSizeImage, sizeof(bmpinfo->biSizeImage), &bmpinfo->biSizeImage);
+	
+	BMP_PRINT_DUMP_D(bmpinfo->biSize);
+	BMP_PRINT_DUMP_D(bmpinfo->biWidth);
+	BMP_PRINT_DUMP_D(bmpinfo->biHeight);
+	BMP_PRINT_DUMP_HU(bmpinfo->biPlanes);
+	BMP_PRINT_DUMP_HU(bmpinfo->biBitCount);
+	BMP_PRINT_DUMP_D(bmpinfo->biCompression);
+	BMP_PRINT_DUMP_D(bmpinfo->biSizeImage);
 	
 	printf("}\n---------------\n");
 }

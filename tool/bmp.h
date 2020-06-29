@@ -1,9 +1,14 @@
 #pragma one
 
 #define ARG_NAME(arg) #arg
-//#define BMP_DEBUG_SESSION
+#define BMP_DEBUG_SESSION
 #define BMPHDUMP(bmph) bmph_dump(bmph, #bmph)
 #define BMPINFODUMP(bmpinfo) bmpinfo_dump(bmpinfo, #bmpinfo)
+
+#define BMP_PRINT_DUMP_D(num)	printf("\t %20s = %8d (size = %d) [%X],\n",		#num,		num, sizeof(num), &num);
+#define BMP_PRINT_DUMP_HU(num)	printf("\t %20s = %8hu (size = %d) [%X],\n",	#num,		num, sizeof(num), &num);
+#define BMP_PRINT_DUMP_X(num)	printf("\t %20s = %8X (size = %d) [%X],\n",		#num,		num, sizeof(num), &num);
+
 
 #include <stdio.h>
 #include <stdlib.h>
