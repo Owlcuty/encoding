@@ -24,6 +24,20 @@
 #define SCALE_FLAGS			0
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 
+#include "bmp.h"
+
+#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
+
+#define AV_CODEC_FLAG_GLOBAL_HEADER (1 << 22)
+#define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
+#define AVFMT_RAWPICTURE 0x0020
+
+//#define MAIN_DEBUG_SESSION
+#define MAIN_LOOP_DEBUG_SESSION
+
+
+typedef int errno_t;
+
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
 	AVStream *st;
@@ -35,18 +49,6 @@ typedef struct OutputStream {
 	float t, tincr, tincr2;
 } OutputStream;
 
-
-#include "bmp.h"
-
-#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
-
-#define AV_CODEC_FLAG_GLOBAL_HEADER (1 << 22)
-#define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
-#define AVFMT_RAWPICTURE 0x0020
-
-//#define MAIN_DEBUG_SESSION
-
-typedef int errno_t;
 
 
 /////* Necessary to free return value! */
@@ -293,9 +295,11 @@ static AVFrame *get_video_frame(OutputStream *ost, pict_t bmp)
 {
 	AVCodecContext *c = ost->st->codec;
 	/* check if we want to generate more frames */
+#ifndef MAIN_LOOP_DEBUG_SESSION
 	if (av_compare_ts(ost->next_pts, ost->st->codec->time_base,
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
+#endif
 	fill_rgb_to_gbr_image(ost->frame, c->width, c->height, bmp);
 	ost->frame->pts = ost->next_pts++;
 	return ost->frame;
@@ -448,10 +452,20 @@ int main(int argc, char **argv)
 	}
 	
 	pict_t *bmp = frames;
-	
+#ifdef MAIN_LOOP_DEBUG_SESSION
+	uint8_t time = 0;
+#endif
 	while (encode_video)
 	{
 		encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
+#ifdef MAIN_LOOP_DEBUG_SESSION
+		time++;
+		if (time == 10)
+		{
+			bmp = frames;
+			time = 0;
+		}
+#endif
 	}
 	
 	av_write_trailer(oc);
