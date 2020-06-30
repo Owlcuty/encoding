@@ -242,7 +242,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 		fprintf(stderr, "Could not allocate stream\n");
 		exit(1);
 	}
-	ost->st->id = oc->nb_streams-1;
+	ost->st->id = oc->nb_streams - 1;
 	c = ost->st->codec;
 	switch ((*codec)->type) {
 	case AVMEDIA_TYPE_AUDIO:
@@ -370,7 +370,7 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 
 int main(int argc, char **argv)
 {
-	pict_t *frames = load_frames("../../../copy_bmps/img%03d.bmp", 250);
+	pict_t *frames = load_frames("../forbmp/image%03d.bmp", 250);
 	if (!frames)
 	{
 		ERRPRINTF("Bad loading frames\n");
