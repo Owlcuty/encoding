@@ -20,7 +20,7 @@
 
 #define STREAM_DURATION		10.0
 #define STREAM_FRAME_RATE	25 /* 25 fps */
-#define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
+#define STREAM_PIX_FMT		AV_PIX_FMT_GBRP /* default pix_fmt */
 #define SCALE_FLAGS			0
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 
@@ -173,12 +173,12 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 		fprintf(stderr, "Could not allocate video frame\n");
 		exit(1);
 	}
-	/* If the output format is not YUV420P, then a temporary YUV420P
+	/* If the output format is not GBRP, then a temporary GBRP
 	* picture is needed too. It is then converted to the required
 	* output format. */
 	ost->tmp_frame = NULL;
-	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
-		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
+	if (c->pix_fmt != AV_PIX_FMT_GBRP) {
+		ost->tmp_frame = alloc_picture(AV_PIX_FMT_GBRP, c->width, c->height);
 		if (!ost->tmp_frame) {
 			fprintf(stderr, "Could not allocate temporary picture\n");
 			exit(1);
@@ -187,7 +187,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 }
 
 
-static void fill_yuv_image(AVFrame *pict, int width, int height, pict_t bmp)
+static void fill_rgb_to_gbr_image(AVFrame *pict, int width, int height, pict_t bmp)
 {
 	int R = 0,
 		G = 0,
@@ -202,22 +202,9 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, pict_t bmp)
 			R = *ptr++;
 			G = *ptr++;
 			B = *ptr++;
-			pict->data[0][y * pict->linesize[0] + x] = 0.299 * R + 0.587 * G + 0.114 * B;
-			ptr++;
-		}
-	}
-	
-	ptr = (uint8_t *)bmp;
-	
-	for (size_t y = 0; y < height / 2; y++)
-	{
-		for (size_t x = 0; x < width / 2; x++)
-		{
-			R = *ptr++;
-			G = *ptr++;
-			B = *ptr++;
-			pict->data[1][y * pict->linesize[1] + x] = 128 - 0.168736 * R - 0.331264 * G + 0.500000 * B;
-			pict->data[2][y * pict->linesize[2] + x] = 128 + 0.500000 * R - 0.418688 * G - 0.081312 * B;
+			pict->data[0][y * pict->linesize[0] + x] = G;
+			pict->data[1][y * pict->linesize[1] + x] = B;
+			pict->data[2][y * pict->linesize[2] + x] = R;
 			ptr++;
 		}
 	}
@@ -309,7 +296,7 @@ static AVFrame *get_video_frame(OutputStream *ost, pict_t bmp)
 	if (av_compare_ts(ost->next_pts, ost->st->codec->time_base,
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
-	fill_yuv_image(ost->frame, c->width, c->height, bmp);
+	fill_rgb_to_gbr_image(ost->frame, c->width, c->height, bmp);
 	ost->frame->pts = ost->next_pts++;
 	return ost->frame;
 }
@@ -378,7 +365,6 @@ int main(int argc, char **argv)
 	}
 	
 	const char  *filename	= "output.mp4";
-//				*codec_name = "libvpx-vp9";
 	
 	OutputStream video_st = { 0 };
 	
@@ -417,6 +403,8 @@ int main(int argc, char **argv)
 		ERRPRINTF("Could not find suitable output format");
 		goto err;
 	}
+	
+	fmt->video_codec = AV_CODEC_ID_VP9;
 	
 	if (fmt->video_codec != AV_CODEC_ID_NONE)
 	{
