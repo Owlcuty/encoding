@@ -133,7 +133,9 @@ static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AV
 	av_packet_rescale_ts(pkt, *time_base, st->time_base);
 	pkt->stream_index = st->index;
 	/* Write the compressed frame to the media file. */
+#ifndef MAIN_LOOP_DEBUG_SESSION
 	log_packet(fmt_ctx, pkt);
+#endif
 	return av_interleaved_write_frame(fmt_ctx, pkt);
 }
 
@@ -453,18 +455,19 @@ int main(int argc, char **argv)
 	
 	pict_t *bmp = frames;
 #ifdef MAIN_LOOP_DEBUG_SESSION
-	uint8_t time = 0;
+	double time = 0;
 #endif
 	while (encode_video)
 	{
 		encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		time++;
-		if (time == 10)
+		if ((int)time % 10 == 0)
 		{
 			bmp = frames;
-			time = 0;
 		}
+		printf("\rVideo duration: %.3fs", time / STREAM_FRAME_RATE);
+		fflush(stdout);
 #endif
 	}
 	
