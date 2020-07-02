@@ -504,15 +504,11 @@ int main(int argc, char **argv)
 	pthread_mutex_init(&mutex, NULL);
 	while (encode_video)
 	{
-		for (size_t thread_ind = 0; thread_ind < NUM_OF_THREADS && encode_video; thread_ind++)
+		for (size_t thread_ind = 0; thread_ind < NUM_OF_THREADS; thread_ind++)
 		{
 			prms_fill(&params, oc, &video_st, *bmp++);
 	
 			pthread_create(&threads[thread_ind], NULL, write_video_frame, (void*)&params);
-	
-			ERRPRINTF("encode_video_before = %d", encode_video);
-			encode_video = params.return_value;
-			ERRPRINTF("encode_video_after = %d", encode_video);
 	
 //			encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
 		}
@@ -520,10 +516,14 @@ int main(int argc, char **argv)
 	
 		for (size_t thread_ind = 0; thread_ind < NUM_OF_THREADS; thread_ind++)
 		{
-			printf("pthread_joooin; frames[%X], bmp[%X]\n", frames, bmp);
+			printf("pthread_joooin; frames[%X], bmp[%X]; encode_video = %d\n", frames, bmp, encode_video);
 			pthread_join(threads[thread_ind], NULL);
-		
+			
 	
+			ERRPRINTF("encode_video_before = %d", encode_video);
+			encode_video = params.return_value;
+//			encode_video = write_video_frame(&params); ??
+			ERRPRINTF("encode_video_after = %d", encode_video);
 		}
 #ifdef MAIN_LOOP_DEBUG_SESSION
 			time++;
