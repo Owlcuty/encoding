@@ -6,11 +6,20 @@
     </Plugin>
   </Plugins>
   <VirtualDirectory Name="includes">
+    <File Name="libm.h"/>
+    <File Name="version.h"/>
+    <File Name="thread.h"/>
+    <File Name="pthread_internal.h"/>
+    <File Name="internal.h"/>
+    <File Name="hwaccel.h"/>
+    <File Name="config.h"/>
     <File Name="bmp.h"/>
   </VirtualDirectory>
   <Description/>
   <Dependencies/>
   <VirtualDirectory Name="src">
+    <File Name="utils.c"/>
+    <File Name="pthread_frame.c"/>
     <File Name="bmp.c"/>
     <File Name="main.c"/>
   </VirtualDirectory>

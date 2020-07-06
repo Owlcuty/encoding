@@ -3,19 +3,32 @@
 #include <stdarg.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
+#include <float.h>
 
 #include <assert.h>
 //#define NDEBUG
 
-#include <pthread.h>
 
 #include <errno.h>
 
 #include <libavutil/avassert.h>
+#include <libavutil/avstring.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/opt.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/timestamp.h>
+#include <libavutil/common.h>
+#include <libavutil/cpu.h>
+#include <libavutil/mem.h>
+#include <libavutil/crc.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/pixdesc.h>
+#include <libavutil/imgutils.h>
+#include <libavutil/samplefmt.h>
+#include <libavutil/dict.h>
+
+#include <libavfilter/avfilter.h>
 
 #include <libavformat/avformat.h>
 
@@ -36,8 +49,6 @@
 //#define MAIN_DEBUG_SESSION
 #define MAIN_LOOP_DEBUG_SESSION
 
-#define NUM_OF_THREADS 1
-
 
 typedef int errno_t;
 
@@ -52,13 +63,6 @@ typedef struct OutputStream {
 	float t, tincr, tincr2;
 } OutputStream;
 
-typedef struct WriteVideoFrameParams {
-	AVFormatContext *oc;
-	OutputStream *ost;
-	pict_t bmp;
-	int return_value;
-} WVFParams_t;
-
 
 
 /////* Necessary to free return value! */
@@ -66,10 +70,13 @@ pict_t *load_frames(const char *filename, size_t num)
 {
 	assert(filename);
 	
+	
 	pict_t *data = NULL;
 	
 	int width  = 0;
 	int height = 0;
+	
+//	ret = avcodec_encode_video2()
 	
 	char *cur_filename = (char*)calloc(strlen(filename) + 1, sizeof(*cur_filename));
 	
@@ -317,47 +324,32 @@ static AVFrame *get_video_frame(OutputStream *ost, pict_t bmp)
 	return ost->frame;
 }
 
-
-pthread_mutex_t mutex;
 /*
  * encode one video frame and send it to the muxer
  * return 1 when encoding is finished, 0 otherwise
  */
-void* write_video_frame(void *params)
+static int write_video_frame(AVFormatContext *oc, OutputStream *ost, pict_t bmp)
 {
-	pthread_mutex_lock(&mutex);
-	WVFParams_t *prms = (WVFParams_t*)params;
-	
 	int ret;
 	AVCodecContext *c;
 	AVFrame *frame;
 	int got_packet = 0;
-	
-	c = prms->ost->st->codec;
-	
-	frame = get_video_frame(prms->ost, prms->bmp);
-	
-	if (prms->oc->oformat->flags & AVFMT_RAWPICTURE) {
-	
+	c = ost->st->codec;
+	frame = get_video_frame(ost, bmp);
+	if (oc->oformat->flags & AVFMT_RAWPICTURE) {
 		/* a hack to avoid data copy with some raw video muxers */
 		AVPacket pkt;
 		av_init_packet(&pkt);
 		if (!frame)
-		{
-			prms->return_value = 1;
-			pthread_mutex_unlock(&mutex);
-			return NULL;
-		}
+			return 1;
 		pkt.flags        |= AV_PKT_FLAG_KEY;
-		pkt.stream_index  = prms->ost->st->index;
+		pkt.stream_index  = ost->st->index;
 		pkt.data          = (uint8_t *)frame;
 		pkt.size          = sizeof(AVPicture);
 		pkt.pts = pkt.dts = frame->pts;
-		av_packet_rescale_ts(&pkt, c->time_base, prms->ost->st->time_base);
-		ret = av_interleaved_write_frame(prms->oc, &pkt);
-	
+		av_packet_rescale_ts(&pkt, c->time_base, ost->st->time_base);
+		ret = av_interleaved_write_frame(oc, &pkt);
 	} else {
-	
 		AVPacket pkt = { 0 };
 		av_init_packet(&pkt);
 		/* encode the image */
@@ -366,22 +358,17 @@ void* write_video_frame(void *params)
 			fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
 			exit(1);
 		}
-	
 		if (got_packet) {
-			ret = write_frame(prms->oc, &c->time_base, prms->ost->st, &pkt);
+			ret = write_frame(oc, &c->time_base, ost->st, &pkt);
 		} else {
 			ret = 0;
 		}
 	}
-	
 	if (ret < 0) {
 		fprintf(stderr, "Error while writing video frame: %s\n", av_err2str(ret));
 		exit(1);
 	}
-	
-	prms->return_value = (frame || got_packet) ? 0 : 1;
-	
-	return NULL;
+	return (frame || got_packet) ? 0 : 1;
 }
 
 static void close_stream(AVFormatContext *oc, OutputStream *ost)
@@ -389,13 +376,6 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 	avcodec_close(ost->st->codec);
 	av_frame_free(&ost->frame);
 	av_frame_free(&ost->tmp_frame);
-}
-
-void prms_fill(WVFParams_t *prms, AVFormatContext *oc, OutputStream *ost, pict_t bmp)
-{
-	prms->oc = oc;
-	prms->ost = ost;
-	prms->bmp = bmp;
 }
 
 int main(int argc, char **argv)
@@ -490,52 +470,23 @@ int main(int argc, char **argv)
 		goto err;
 	}
 	
-	pthread_t threads[NUM_OF_THREADS];
-	
+	pict_t *bmp = frames;
 #ifdef MAIN_LOOP_DEBUG_SESSION
 	double time = 0;
 #endif
-	
-	pict_t *bmp = frames;
-//	ERRPRINTF("Params: [[oc]] {%X}, [[&video_st]] {%X}", oc, &video_st);
-	WVFParams_t params = { 0 };
-	params.return_value = encode_video;
-	
-	pthread_mutex_init(&mutex, NULL);
 	while (encode_video)
 	{
-		for (size_t thread_ind = 0; thread_ind < NUM_OF_THREADS; thread_ind++)
-		{
-			prms_fill(&params, oc, &video_st, *bmp++);
-	
-			pthread_create(&threads[thread_ind], NULL, write_video_frame, (void*)&params);
-	
-//			encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
-		}
-		
-	
-		for (size_t thread_ind = 0; thread_ind < NUM_OF_THREADS; thread_ind++)
-		{
-			printf("pthread_joooin; frames[%X], bmp[%X]; encode_video = %d\n", frames, bmp, encode_video);
-			pthread_join(threads[thread_ind], NULL);
-			
-	
-			ERRPRINTF("encode_video_before = %d", encode_video);
-			encode_video = params.return_value;
-//			encode_video = write_video_frame(&params); ??
-			ERRPRINTF("encode_video_after = %d", encode_video);
-		}
+		encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
 #ifdef MAIN_LOOP_DEBUG_SESSION
-			time++;
-			if ((int)time % 10 == 0)
-			{
-				params.bmp = frames;
-			}
-			printf("\rVideo duration: %.3fs", time / STREAM_FRAME_RATE);
-			fflush(stdout);
+		time++;
+		if ((int)time % 10 == 0)
+		{
+			bmp = frames;
+		}
+		printf("\rVideo duration: %.3fs", time / STREAM_FRAME_RATE);
+		fflush(stdout);
 #endif
 	}
-	pthread_mutex_destroy(&mutex);
 	
 	av_write_trailer(oc);
 	
