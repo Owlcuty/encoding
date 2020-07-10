@@ -270,10 +270,13 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
          * of which frame timestamps are represented. For fixed-fps content,
          * timebase should be 1/framerate and timestamp increments should be
          * identical to 1. */
-		ost->st->time_base = (AVRational){ 1, STREAM_FRAME_RATE };
-		c->time_base       = ost->st->time_base;
-		c->gop_size      = 12; /* emit one intra frame every twelve frames at most */
-		c->pix_fmt       = STREAM_PIX_FMT;
+		ost->st->time_base	= (AVRational){ 1, STREAM_FRAME_RATE };
+		c->time_base		= ost->st->time_base;
+		c->gop_size			= 12; /* emit one intra frame every twelve frames at most */
+		c->pix_fmt			= STREAM_PIX_FMT;
+		
+		c->thread_count		= 4;
+		
 		if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
 			/* just for testing, we also add B frames */
 			c->max_b_frames = 1;
