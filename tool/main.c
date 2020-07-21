@@ -32,8 +32,8 @@
 #define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
 #define AVFMT_RAWPICTURE 0x0020
 
-//#define MAIN_DEBUG_SESSION
-#define MAIN_LOOP_DEBUG_SESSION
+#define MAIN_DEBUG_SESSION
+//#define MAIN_LOOP_DEBUG_SESSION
 
 
 typedef int errno_t;
@@ -52,19 +52,19 @@ typedef struct OutputStream {
 
 
 /////* Necessary to free return value! */
-pict_t *load_frames(const char *filename, size_t num)
+framedata_t* *load_frames(const char *filename, size_t num)
 {
 	assert(filename);
 	
-	pict_t *data = NULL;
+	framedata_t* *data = NULL;
 	
 	int width  = 0;
 	int height = 0;
 	
 	char *cur_filename = (char*)calloc(strlen(filename) + 1, sizeof(*cur_filename));
 	
-	pict_t cur_pict = NULL;
-	pict_t *cur_pos = data;
+	framedata_t* cur_pict = NULL;
+	framedata_t* *cur_pos = data;
 	
 	for (int frame = 1; frame <= num; frame++)
 	{
@@ -79,7 +79,7 @@ pict_t *load_frames(const char *filename, size_t num)
 		
 		if (frame == 1)
 		{
-			data = (pict_t*)calloc(width * height * num, sizeof(*data));
+			data = (framedata_t**)calloc(width * height * num, sizeof(*data));
 			if (!data)
 			{
 				perror("calloc() load_frames::data failed");
@@ -191,27 +191,31 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 }
 
 
-static void fill_rgb_to_gbr_image(AVFrame *pict, int width, int height, pict_t bmp)
+static void fill_rgb_to_gbr_image(AVFrame *pict, int width, int height, framedata_t* bmp)
 {
-	int R = 0,
-		G = 0,
-		B = 0;
+	BYTE	R = 0,
+			G = 0,
+			B = 0;
 	
-	uint8_t *ptr = (uint8_t *)bmp;
+	pict->data[0] = bmp->green;
+	pict->data[1] = bmp->blue;
+	pict->data[2] = bmp->red;
 	
-	for (size_t y = 0; y < height; y++)
-	{
-		for (size_t x = 0; x < width; x++)
-		{
-			R = *ptr++;
-			G = *ptr++;
-			B = *ptr++;
-			pict->data[0][y * pict->linesize[0] + x] = G;
-			pict->data[1][y * pict->linesize[1] + x] = B;
-			pict->data[2][y * pict->linesize[2] + x] = R;
-			ptr++;
-		}
-	}
+//	uint8_t *ptr = (uint8_t *)bmp;
+//	
+//	for (size_t y = 0; y < height; y++)
+//	{
+//		for (size_t x = 0; x < width; x++)
+//		{
+//			R = *ptr++;
+//			G = *ptr++;
+//			B = *ptr++;
+//			pict->data[0][y * pict->linesize[0] + x] = G;
+//			pict->data[1][y * pict->linesize[1] + x] = B;
+//			pict->data[2][y * pict->linesize[2] + x] = R;
+//			ptr++;
+//		}
+//	}
 }
 
 /* Add an output stream. */
@@ -296,7 +300,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 }
 
-static AVFrame *get_video_frame(OutputStream *ost, pict_t bmp)
+static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
 {
 	AVCodecContext *c = ost->st->codec;
 	/* check if we want to generate more frames */
@@ -314,7 +318,7 @@ static AVFrame *get_video_frame(OutputStream *ost, pict_t bmp)
  * encode one video frame and send it to the muxer
  * return 1 when encoding is finished, 0 otherwise
  */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost, pict_t bmp)
+static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t* bmp)
 {
 	int ret;
 	AVCodecContext *c;
@@ -366,7 +370,7 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 
 int main(int argc, char **argv)
 {
-	pict_t *frames = load_frames("../forbmp/image%03d.bmp", 250);
+	framedata_t* *frames = load_frames("../forbmp/image%03d.bmp", 250);
 	if (!frames)
 	{
 		ERRPRINTF("Bad loading frames\n");
@@ -427,18 +431,6 @@ int main(int argc, char **argv)
 	
 	av_dump_format(oc, 0, filename, 1);
 	
-	if (fmt->video_codec != AV_CODEC_ID_NONE)
-	{
-		add_stream(&video_st, oc, &video_codec, fmt->video_codec);
-		have_video = 1;
-		encode_video = 1;
-	}
-	
-	if (have_video)
-		open_video(oc, video_codec, &video_st, opt);
-	
-	av_dump_format(oc, 0, filename, 1);
-	
 	if (!(fmt->flags & AVFMT_NOFILE))
 	{
 		ret = avio_open(&oc->pb, filename, AVIO_FLAG_WRITE);
@@ -456,7 +448,7 @@ int main(int argc, char **argv)
 		goto err;
 	}
 	
-	pict_t *bmp = frames;
+	framedata_t* *bmp = frames;
 #ifdef MAIN_LOOP_DEBUG_SESSION
 	double time = 0;
 #endif

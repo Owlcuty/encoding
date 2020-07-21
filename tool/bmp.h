@@ -68,9 +68,19 @@ typedef struct
 	
 	DWORD	biAlphaMask;
 } bitmapinfo_t;
+
+typedef struct
+{
+	BYTE *red;
+	BYTE *green;
+	BYTE *blue;
+	
+	size_t size;
+} framedata_t;
+
 #pragma pack(pop)
 
 //int get_filesize(FILE* file);
 //unsigned char bitextract(const DWORD byte, const DWORD mask);
 //int get_padding(DWORD width, WORD bitCount);
-pict_t load_bmp(const char* filename, int *width, int *height);
+framedata_t* load_bmp(const char* filename, int *width, int *height);

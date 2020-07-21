@@ -81,7 +81,7 @@ int get_padding(DWORD width, WORD bitCount)
 	return ((width * (bitCount / 8)) % 4) & 3;
 }
 
-pict_t load_bmp(const char* filename,
+framedata_t* load_bmp(const char* filename,
 				int *width, int *height)
 {
 	assert(filename);
@@ -316,8 +316,16 @@ pict_t load_bmp(const char* filename,
 		goto err;
 	}
 	
+	framedata_t *retframe = calloc(1, sizeof(framedata_t));
+	retframe->red	= calloc((*width) * (*height), sizeof(BYTE));
+	retframe->blue	= calloc((*width) * (*height), sizeof(BYTE));
+	retframe->green	= calloc((*width) * (*height), sizeof(BYTE));
+	retframe->size	= (*width) * (*height);
 	// BGR -> RGB
 	uint8_t* ptr = (uint8_t*)frame;
+	uint8_t* r_ptr = retframe->red;
+	uint8_t* g_ptr = retframe->blue;
+	uint8_t* b_ptr = retframe->green;
 	for (size_t y = *height; y > 0; y--)
 	{
 		unsigned char *pRow = tmp_buf + mwidth * (y - 1);
@@ -326,6 +334,11 @@ pict_t load_bmp(const char* filename,
 			*ptr++ = *(pRow + 2);
 			*ptr++ = *(pRow + 1);
 			*ptr++ = *pRow;
+			
+			*r_ptr++ = *(pRow + 2);
+			*g_ptr++ = *(pRow + 1);
+			*b_ptr++ = *pRow;
+			
 			pRow  += 3;
 			ptr++;
 		}
@@ -337,7 +350,7 @@ pict_t load_bmp(const char* filename,
 	
 	fclose(file);
 	
-	return frame;
+	return retframe;
 	
 err:
 	free(tmp_buf);
