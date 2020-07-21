@@ -543,8 +543,9 @@ int main(int argc, char **argv)
 #ifdef MAIN_LOOP_DEBUG_SESSION
 	double time = 0;
 #endif
-	while (encode_video)
+	while (encode_video && bmp < frames + STREAM_NB_FRAMES)
 	{
+		fprintf(stderr, "frames[%X] -- bmp[%X] --> end[%X]\n", frames, bmp, frames + STREAM_NB_FRAMES);
 		encode_video = (int)(write_video_frame(video_st, *bmp++) == NULL);
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		time++;
