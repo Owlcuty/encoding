@@ -6,6 +6,7 @@
     </Plugin>
   </Plugins>
   <VirtualDirectory Name="includes">
+    <File Name="vpxcontext.h"/>
     <File Name="bmp.h"/>
   </VirtualDirectory>
   <Description/>

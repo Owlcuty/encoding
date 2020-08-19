@@ -81,6 +81,13 @@ int get_padding(DWORD width, WORD bitCount)
 	return ((width * (bitCount / 8)) % 4) & 3;
 }
 
+void YUVfromRGB(double* Y, double* U, double* V, const double R, const double G, const double B)
+{
+	*Y =  0.257 * R + 0.504 * G + 0.098 * B +  16;
+	*U = -0.148 * R - 0.291 * G + 0.439 * B + 128;
+	*V =  0.439 * R - 0.368 * G - 0.071 * B + 128;
+}
+
 framedata_t* load_bmp(const char* filename,
 				int *width, int *height)
 {
@@ -317,30 +324,21 @@ framedata_t* load_bmp(const char* filename,
 	}
 	
 	framedata_t *retframe = calloc(1, sizeof(framedata_t));
-	retframe->red	= calloc((*width) * (*height), sizeof(BYTE));
-	retframe->blue	= calloc((*width) * (*height), sizeof(BYTE));
-	retframe->green	= calloc((*width) * (*height), sizeof(BYTE));
-	retframe->size	= (*width) * (*height);
+	retframe->Y = calloc((*width) * (*height), sizeof(BYTE));
+	retframe->U = calloc((*width) * (*height), sizeof(BYTE));
+	retframe->V = calloc((*width) * (*height), sizeof(BYTE));
+	retframe->size = (*width) * (*height);
 	// BGR -> RGB
-	uint8_t* ptr = (uint8_t*)frame;
-	uint8_t* r_ptr = retframe->red;
-	uint8_t* g_ptr = retframe->blue;
-	uint8_t* b_ptr = retframe->green;
+//	uint8_t* ptr = (uint8_t*)frame;
+	uint8_t* ptrY = retframe->Y;
+	uint8_t* ptrU = retframe->U;
+	uint8_t* ptrV = retframe->V;
 	for (size_t y = *height; y > 0; y--)
 	{
 		unsigned char *pRow = tmp_buf + mwidth * (y - 1);
 		for (size_t x = 0; x < *width; x++)
 		{
-			*ptr++ = *(pRow + 2);
-			*ptr++ = *(pRow + 1);
-			*ptr++ = *pRow;
-			
-			*r_ptr++ = *(pRow + 2);
-			*g_ptr++ = *(pRow + 1);
-			*b_ptr++ = *pRow;
-			
-			pRow  += 3;
-			ptr++;
+			YUVfromRGB(ptrY++, ptrU++, ptrV++, *(pRow + 2), *(pRow + 1), *pRow);
 		}
 	}
 	

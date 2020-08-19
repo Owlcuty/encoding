@@ -36,6 +36,12 @@ typedef uint16_t	WORD;	//2
 typedef uint32_t	DWORD;	//4
 typedef int32_t		LONG;	//4
 
+enum TYPE_PIXEL_FORMAT_DATA
+{
+	RGB,
+	YUV
+};
+
 
 #pragma pack(push, 1)
 typedef struct
@@ -71,9 +77,9 @@ typedef struct
 
 typedef struct
 {
-	BYTE *red;
-	BYTE *green;
-	BYTE *blue;
+	BYTE *Y;
+	BYTE *U;
+	BYTE *V;
 	
 	size_t size;
 } framedata_t;
@@ -84,3 +90,4 @@ typedef struct
 //unsigned char bitextract(const DWORD byte, const DWORD mask);
 //int get_padding(DWORD width, WORD bitCount);
 framedata_t* load_bmp(const char* filename, int *width, int *height);
+void YUVfromRGB(double* Y, double* U, double* V, const double R, const double G, const double B);

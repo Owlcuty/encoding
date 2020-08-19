@@ -1,3 +1,5 @@
+// Я сейчас заплачу. Codelite крашнулся и выплюнул мне старый свап, который вообще наполовину стёрт.............
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -19,8 +21,8 @@
 #include <libavformat/avformat.h>
 
 #define STREAM_DURATION		10.0
-#define STREAM_FRAME_RATE	25 /* 25 fps */
-#define STREAM_PIX_FMT		AV_PIX_FMT_GBRP /* default pix_fmt */
+#define STREAM_FRAME_RATE	20 /* 25 fps */
+#define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS			0
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 
@@ -35,31 +37,18 @@
 //#define MAIN_DEBUG_SESSION
 #define MAIN_LOOP_DEBUG_SESSION
 
+#define MAIN_VIDEO_CODEC_ID AV_CODEC_ID_VP8
 
 typedef int errno_t;
 
-
-
-
-
-//#if 0
-
-
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
-	AVOutputFormat *fmt;
-	AVFormatContext *oc;
 	AVStream *st;
-	AVCodecContext *enc;
-	
 	/* pts of the next frame that will be generated */
 	int64_t next_pts;
 	int samples_count;
-	
 	AVFrame *frame;
 	AVFrame *tmp_frame;
-	
-	int bitrate;
 	float t, tincr, tincr2;
 } OutputStream;
 
@@ -157,15 +146,12 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 {
 	AVFrame *picture;
 	int ret;
-	
 	picture = av_frame_alloc();
 	if (!picture)
 		return NULL;
-		
 	picture->format = pix_fmt;
 	picture->width  = width;
 	picture->height = height;
-	
 	/* allocate the buffers for the frame data */
 	ret = av_frame_get_buffer(picture, 32);
 	if (ret < 0) {
@@ -175,14 +161,12 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 	return picture;
 }
 
-static void open_video(AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
+static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
 {
 	int ret;
-	AVCodecContext *c = ost->enc;
+	AVCodecContext *c = ost->st->codec;
 	AVDictionary *opt = NULL;
-	
 	av_dict_copy(&opt, opt_arg, 0);
-	
 	/* open the codec */
 	ret = avcodec_open2(c, codec, &opt);
 	av_dict_free(&opt);
@@ -190,7 +174,6 @@ static void open_video(AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
 		fprintf(stderr, "Could not open video codec: %s\n", av_err2str(ret));
 		exit(1);
 	}
-	
 	/* allocate and init a re-usable frame */
 	ost->frame = alloc_picture(c->pix_fmt, c->width, c->height);
 	if (!ost->frame) {
@@ -201,22 +184,24 @@ static void open_video(AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
 	* picture is needed too. It is then converted to the required
 	* output format. */
 	ost->tmp_frame = NULL;
-	if (c->pix_fmt != AV_PIX_FMT_GBRP) {
-		ost->tmp_frame = alloc_picture(AV_PIX_FMT_GBRP, c->width, c->height);
+	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
+		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
 		if (!ost->tmp_frame) {
 			fprintf(stderr, "Could not allocate temporary picture\n");
 			exit(1);
 		}
 	}
-	
-	ret = avcodec_parameters_from_context(ost->st->codecpar, c);
-	if (ret < 0)
-	{
-		ERRPRINTF("Could not copy the stream parameters");
-		exit(1);
-	}
 }
 
+
+static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t* bmp)
+{
+	pict->data[0] = bmp->Y;
+	pict->data[1] = bmp->U;
+	pict->data[2] = bmp->V;
+}
+
+#if 0
 
 static void fill_rgb_to_gbr_image(AVFrame *pict, int width, int height, framedata_t* bmp)
 {
@@ -245,16 +230,15 @@ static void fill_rgb_to_gbr_image(AVFrame *pict, int width, int height, framedat
 //	}
 }
 
+#endif
 
 /* Add an output stream. */
-static void add_stream(OutputStream *ost,
+static void add_stream(OutputStream *ost, AVFormatContext *oc,
 					   AVCodec **codec,
-					   enum AVCodecID codec_id,
-					   int width, int height)
+					   enum AVCodecID codec_id)
 {
 	AVCodecContext *c;
-	int i = 0;
-	
+	int i;
 	/* find the encoder */
 	*codec = avcodec_find_encoder(codec_id);
 	if (!(*codec)) {
@@ -262,20 +246,13 @@ static void add_stream(OutputStream *ost,
 				avcodec_get_name(codec_id));
 		exit(1);
 	}
-	
-	ost->st = avformat_new_stream(ost->oc, NULL);
+	ost->st = avformat_new_stream(oc, *codec);
 	if (!ost->st) {
 		fprintf(stderr, "Could not allocate stream\n");
 		exit(1);
 	}
-	ost->st->id = ost->oc->nb_streams - 1;
-	c = avcodec_alloc_context3(*codec);
-	if (!c)
-	{
-		ERRPRINTF("Could not alloc an encoding context");
-	}
-	ost->enc = c;
-	
+	ost->st->id = oc->nb_streams - 1;
+	c = ost->st->codec;
 	switch ((*codec)->type) {
 	case AVMEDIA_TYPE_AUDIO:
 		c->sample_fmt  = (*codec)->sample_fmts ?
@@ -303,55 +280,51 @@ static void add_stream(OutputStream *ost,
 		break;
 	case AVMEDIA_TYPE_VIDEO:
 		c->codec_id = codec_id;
-		
-		c->bit_rate = ost->bitrate;
+		c->bit_rate = 400000;
 		/* Resolution must be a multiple of two. */
-		c->width    = width;
-		c->height   = height;
+		c->width    = 1920;//640;
+		c->height   = 1080;//360;
 		/* timebase: This is the fundamental unit of time (in seconds) in terms
          * of which frame timestamps are represented. For fixed-fps content,
          * timebase should be 1/framerate and timestamp increments should be
          * identical to 1. */
 		ost->st->time_base	= (AVRational){ 1, STREAM_FRAME_RATE };
 		c->time_base		= ost->st->time_base;
-		
 		c->gop_size			= 12; /* emit one intra frame every twelve frames at most */
 		c->pix_fmt			= STREAM_PIX_FMT;
 		
 		c->thread_count		= 4;
-//		
-//		if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-//			/* just for testing, we also add B frames */
-//			c->max_b_frames = 1;
-//		}
-//		if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-//			/* Needed to avoid using macroblocks in which some coeffs overflow.
-//             * This does not happen with normal video, it just happens here as
-//             * the motion of the chroma plane does not match the luma plane. */
-//			c->mb_decision = 2;
-//		}
-		break;
+		
+		if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+			/* just for testing, we also add B frames */
+			c->max_b_frames = 1;
+		}
+		if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
+			/* Needed to avoid using macroblocks in which some coeffs overflow.
+             * This does not happen with normal video, it just happens here as
+             * the motion of the chroma plane does not match the luma plane. */
+			c->mb_decision = 2;
+		}
+	break;
 	default:
 		break;
 	}
 	/* Some formats want stream headers to be separate. */
-	if (ost->oc->oformat->flags & AVFMT_GLOBALHEADER)
+	if (oc->oformat->flags & AVFMT_GLOBALHEADER)
 		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 }
 
 static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
 {
-	AVCodecContext *c = ost->enc;
+	AVCodecContext *c = ost->st->codec;
 	/* check if we want to generate more frames */
 #ifndef MAIN_LOOP_DEBUG_SESSION
 	if (av_compare_ts(ost->next_pts, ost->st->codec->time_base,
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
 #endif
-	fill_rgb_to_gbr_image(ost->frame, c->width, c->height, bmp);
-	
+	fill_yuv_image(ost->frame, c->width, c->height, bmp);
 	ost->frame->pts = ost->next_pts++;
-	
 	return ost->frame;
 }
 
@@ -359,119 +332,72 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
  * encode one video frame and send it to the muxer
  * return 1 when encoding is finished, 0 otherwise
  */
-static int write_video_frame(OutputStream *ost, framedata_t* bmp)
+static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t* bmp)
 {
 	int ret;
-	AVCodecContext *c = ost->enc;
-	AVPacket pkt = { 0 };
-	
-	ost->frame = get_video_frame(ost, bmp);
-	
-	av_init_packet(&pkt);
-	
-	ret = avcodec_send_frame(c, ost->frame);
-	if (ret < 0)
-	{
-		ERRPRINTF("Error encoding video frame: %s", av_err2str(ret));
-		return 1;
-	}
-	
-	ret = avcodec_receive_packet(c, &pkt);
-	if (ret == 0)
-	{
-		ret = write_frame(ost->oc, &c->time_base, ost->st, &pkt);
-		if (ret < 0)
-		{
-			ERRPRINTF("Error while writing video frame: %s", av_err2str(ret));
+	AVCodecContext *c;
+	AVFrame *frame;
+	int got_packet = 0;
+	c = ost->st->codec;
+	frame = get_video_frame(ost, bmp);
+	if (oc->oformat->flags & AVFMT_RAWPICTURE) {
+		/* a hack to avoid data copy with some raw video muxers */
+		AVPacket pkt;
+		av_init_packet(&pkt);
+		if (!frame)
 			return 1;
+		pkt.flags        |= AV_PKT_FLAG_KEY;
+		pkt.stream_index  = ost->st->index;
+		pkt.data          = (uint8_t *)frame;
+		pkt.size          = sizeof(AVPicture);
+		pkt.pts = pkt.dts = frame->pts;
+		av_packet_rescale_ts(&pkt, c->time_base, ost->st->time_base);
+		ret = av_interleaved_write_frame(oc, &pkt);
+	} else {
+		AVPacket pkt = { 0 };
+		av_init_packet(&pkt);
+		/* encode the image */
+		ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+		if (ret < 0) {
+			fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+			exit(1);
+		}
+		if (got_packet) {
+			ret = write_frame(oc, &c->time_base, ost->st, &pkt);
+		} else {
+			ret = 0;
 		}
 	}
-	else if (ret == AVERROR(EINVAL)) {
-		fprintf(stderr, "Error while getting video packet: %s\n", av_err2str(ret));
-		return 1;
+	if (ret < 0) {
+		fprintf(stderr, "Error while writing video frame: %s\n", av_err2str(ret));
+		exit(1);
 	}
-	else if (ret == AVERROR_EOF) {
-		fprintf(stderr, "End of stream met while adding a frame\n");
-		return 1;
-	}
-	else if (ret == AVERROR(EAGAIN))
-		return 0;
-	
-	return 0;
+	return (frame || got_packet) ? 0 : 1;
 }
 
-static void flush_stream(OutputStream *ost)
+static void close_stream(AVFormatContext *oc, OutputStream *ost)
 {
-	int ret;
-	AVPacket pkt = { 0 };
-	av_init_packet(&pkt);
-	
-	ret = avcodec_send_frame(ost->enc, NULL);
-	if (ret < 0)
-	{
-		ERRPRINTF("Error encoding video frame: %s", av_err2str(ret));
-		return;
-	}
-	
-	do
-	{
-		ret = avcodec_receive_packet(ost->enc, &pkt);
-		if (ret == 0)
-		{
-			ret = write_frame(ost->oc, &ost->enc->time_base, ost->st, &pkt);
-			if (ret < 0)
-			{
-				ERRPRINTF("Error while writing video frame: %s", av_err2str(ret));
-				return;
-			}
-		}
-		else if (ret == AVERROR(EINVAL)) {
-			fprintf(stderr, "Error while getting video packet: %s\n", av_err2str(ret));
-			return;
-		}
-	}
-	while (ret != AVERROR_EOF) ;
-}
-
-static void close_stream(OutputStream *ost)
-{
-	avcodec_free_context(&ost->enc);
+	avcodec_close(ost->st->codec);
 	av_frame_free(&ost->frame);
 	av_frame_free(&ost->tmp_frame);
 }
 
-
-//#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 int main(int argc, char **argv)
 {
-	framedata_t* *frames = load_frames("../forbmp/image%03d.bmp", 250);
+//	framedata_t* *frames = load_frames("../forbmp/image%03d.bmp", 250);
+	framedata_t* *frames = load_frames("../forbmp1080p/image%05d.bmp", 250);
 	if (!frames)
 	{
 		ERRPRINTF("Bad loading frames\n");
 		return 0;
 	}
 	
-	const char  *filename	= "output.mp4";
+	const char  *filename	= "output.webm";
 	
-	OutputStream* video_st = NULL;
+	OutputStream video_st = { 0 };
 	
+	AVOutputFormat	*fmt	= NULL;
+	AVFormatContext	*oc		= NULL;
 	AVCodec *video_codec = NULL;
 	
 	int ret = 0;
@@ -479,52 +405,50 @@ int main(int argc, char **argv)
 	int encode_video	= 0;
 	AVDictionary *opt	= NULL;
 	
-//	av_register_all();
-	video_st = calloc(1, sizeof(*video_st));
+	av_register_all();
 	
-	avformat_alloc_output_context2(&video_st->oc, NULL, NULL, filename);
-	if (!video_st->oc)
+	avformat_alloc_output_context2(&oc, NULL, NULL, filename);
+	if (!oc)
 	{
 		printf("ffmpeg: Could not deduce output format file extension: using MPEG.\n");
-		avformat_alloc_output_context2(&video_st->oc, NULL, "mpeg", filename);
+		avformat_alloc_output_context2(&oc, NULL, "webm", filename);
 	}
-	if (!video_st->oc)
+	if (!oc)
 	{
 		ERRPRINTF("ffmpeg: Could not alloc output context");
 		goto err;
 	}
 	
-	video_st->fmt = video_st->oc->oformat;
-	if (!video_st->fmt)
+	fmt = oc->oformat;
+	if (!fmt)
 	{
-		ERRPRINTF("Could not deduce output format from file extension: using MPEG.");
-		video_st->fmt = av_guess_format("mpeg", NULL, NULL);
-		video_st->oc->oformat = video_st->fmt;
+		printf("%d:: Could not deduce output format from file extension: using MPEG.");
+		fmt = av_guess_format("mpeg", NULL, NULL);
+		oc->oformat = fmt;
 	}
-	if (!video_st->fmt)
+	if (!fmt)
 	{
 		ERRPRINTF("Could not find suitable output format");
 		goto err;
 	}
 	
-	video_st->fmt->video_codec = AV_CODEC_ID_VP9;
-	video_st->bitrate = 400000;
+	fmt->video_codec = MAIN_VIDEO_CODEC_ID;
 	
-	if (video_st->fmt->video_codec != AV_CODEC_ID_NONE)
+	if (fmt->video_codec != AV_CODEC_ID_NONE)
 	{
-		add_stream(video_st, &video_codec, video_st->fmt->video_codec, 640, 360);
+		add_stream(&video_st, oc, &video_codec, fmt->video_codec);
 		have_video		= 1;
 		encode_video	= 1;
 	}
 	
 	if (have_video)
-		open_video(video_codec, video_st, opt);
+		open_video(oc, video_codec, &video_st, opt);
 	
-	av_dump_format(video_st->oc, 0, filename, 1);
+	av_dump_format(oc, 0, filename, 1);
 	
-	if (!(video_st->fmt->flags & AVFMT_NOFILE))
+	if (!(fmt->flags & AVFMT_NOFILE))
 	{
-		ret = avio_open(&video_st->oc->pb, filename, AVIO_FLAG_WRITE);
+		ret = avio_open(&oc->pb, filename, AVIO_FLAG_WRITE);
 		if (ret < 0)
 		{
 			ERRPRINTF("Could not open '%s' : %s", filename, av_err2str(ret));
@@ -532,7 +456,7 @@ int main(int argc, char **argv)
 		}
 	}
 	
-	ret = avformat_write_header(video_st->oc, &opt);
+	ret = avformat_write_header(oc, &opt);
 	if (ret < 0)
 	{
 		ERRPRINTF("Error occurred when opening output file: %s", av_err2str(ret));
@@ -543,10 +467,9 @@ int main(int argc, char **argv)
 #ifdef MAIN_LOOP_DEBUG_SESSION
 	double time = 0;
 #endif
-	while (encode_video && bmp < frames + STREAM_NB_FRAMES)
+	while (encode_video)
 	{
-		fprintf(stderr, "frames[%X] -- bmp[%X] --> end[%X]\n", frames, bmp, frames + STREAM_NB_FRAMES);
-		encode_video = (int)(write_video_frame(video_st, *bmp++) == NULL);
+		encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		time++;
 		if ((int)time % 10 == 0)
@@ -558,23 +481,22 @@ int main(int argc, char **argv)
 #endif
 	}
 	
-	flush_stream(video_st);
-	av_write_trailer(video_st->oc);
+	av_write_trailer(oc);
 	
 	if (have_video)
-		close_stream(video_st);
+		close_stream(oc, &video_st);
 	
-	if (!(video_st->fmt->flags & AVFMT_NOFILE))
+	if (!(fmt->flags & AVFMT_NOFILE))
 	{
-		avio_closep(&video_st->oc->pb);
+		avio_closep(&oc->pb);
 	}
 	
-	avformat_free_context(video_st->oc);
+	avformat_free_context(oc);
 	
 	return 0;
 	
 err:
-	avformat_free_context(video_st->oc);
+	avformat_free_context(oc);
 	
 	return -1;
 }
