@@ -34,8 +34,8 @@
 #define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
 #define AVFMT_RAWPICTURE 0x0020
 
-//#define MAIN_DEBUG_SESSION
-#define MAIN_LOOP_DEBUG_SESSION
+#define MAIN_DEBUG_SESSION
+//#define MAIN_LOOP_DEBUG_SESSION
 
 #define MAIN_VIDEO_CODEC_ID AV_CODEC_ID_VP8
 
@@ -95,10 +95,10 @@ framedata_t* *load_frames(const char *filename, size_t num)
 		}
 		
 #ifdef MAIN_DEBUG_SESSION
-	printf("%d::%s::%s Data [%X] -- Cur_pos [%X]. Width {%d}, Height {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
-							data,		cur_pos,
-														width,		height);
-	printf("%d::%s::%s Cur_pict [%X] \n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, cur_pict);
+//	printf("%d::%s::%s Data [%X] -- Cur_pos [%X]. Width {%d}, Height {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
+//							data,		cur_pos,
+//														width,		height);
+//	printf("%d::%s::%s Cur_pict [%X] \n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, cur_pict);
 #endif
 		
 		*cur_pos = cur_pict;

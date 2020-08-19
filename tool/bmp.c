@@ -81,7 +81,7 @@ int get_padding(DWORD width, WORD bitCount)
 	return ((width * (bitCount / 8)) % 4) & 3;
 }
 
-void YUVfromRGB(double* Y, double* U, double* V, const double R, const double G, const double B)
+void YUVfromRGB(double* Y, double* U, double* V, const BYTE R, const BYTE G, const BYTE B)
 {
 	*Y =  0.257 * R + 0.504 * G + 0.098 * B +  16;
 	*U = -0.148 * R - 0.291 * G + 0.439 * B + 128;
@@ -338,7 +338,12 @@ framedata_t* load_bmp(const char* filename,
 		unsigned char *pRow = tmp_buf + mwidth * (y - 1);
 		for (size_t x = 0; x < *width; x++)
 		{
-			YUVfromRGB(ptrY++, ptrU++, ptrV++, *(pRow + 2), *(pRow + 1), *pRow);
+			*ptrY++ = Y_TRANSCRIPTION(*(pRow + 2), *(pRow + 1), *pRow);
+			if (x % 2 == 0 && y % 2 == 0)
+			{
+				*ptrU++ = U_TRANSCRIPTION(*(pRow + 2), *(pRow + 1), *pRow);
+				*ptrV++ = V_TRANSCRIPTION(*(pRow + 2), *(pRow + 1), *pRow);
+			}
 		}
 	}
 	
