@@ -20,8 +20,8 @@
 
 #include <libavformat/avformat.h>
 
-#define STREAM_DURATION		10.0
-#define STREAM_FRAME_RATE	20 /* 25 fps */
+#define STREAM_DURATION		3.0
+#define STREAM_FRAME_RATE	30 /* 25 fps */
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS			0
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
@@ -54,66 +54,33 @@ typedef struct OutputStream {
 
 
 
-/////* Necessary to free return value! */
-framedata_t* *load_frames(const char *filename, size_t num)
+errno_t load_frame(framedata_t** data, const char *filename, size_t frame_ind)
 {
 	assert(filename);
-	
-	framedata_t* *data = NULL;
 	
 	int width  = 0;
 	int height = 0;
 	
 	char *cur_filename = (char*)calloc(strlen(filename) + 1, sizeof(*cur_filename));
 	
-	framedata_t* cur_pict = NULL;
-	framedata_t* *cur_pos = data;
+	sprintf(cur_filename, filename, frame_ind);
 	
-	for (int frame = 1; frame <= num; frame++)
+	*data = load_bmp((const char*)cur_filename, &width, &height);
+	if (!(*data))
 	{
-		sprintf(cur_filename, filename, frame);
-
-		cur_pict = load_bmp((const char*)cur_filename, &width, &height);
-		if (!cur_pict)
-		{
-			ERRPRINTF("Bad loading bmp\n");
-			goto err;
-		}
-		
-		if (frame == 1)
-		{
-			data = (framedata_t**)calloc(width * height * num, sizeof(*data));
-			if (!data)
-			{
-				perror("calloc() load_frames::data failed");
-				goto err;
-			}
-#ifdef MAIN_DEBUG_SESSION
-			printf("%s::%d::%s:: For data was alloced %d bytes\n", __FILENAME__, __LINE__, __PRETTY_FUNCTION__, width * height * num);
-#endif
-			cur_pos = data;
-		}
-		
-#ifdef MAIN_DEBUG_SESSION
-//	printf("%d::%s::%s Data [%X] -- Cur_pos [%X]. Width {%d}, Height {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
-//							data,		cur_pos,
-//														width,		height);
-//	printf("%d::%s::%s Cur_pict [%X] \n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, cur_pict);
-#endif
-		
-		*cur_pos = cur_pict;
-		cur_pos++;
+		ERRPRINTF("Bad loading bmp\n");
+		goto err;
 	}
 	
 	free(cur_filename);
 	
-	return data;
+	return 0;
 	
 err:
 	free(cur_filename);
-	free(cur_pict);
+	free(data);
 	
-	return NULL;
+	return errno;
 }
 
 AVFrame *picture, *tmp_picture;
@@ -196,9 +163,21 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 
 static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t* bmp)
 {
-	pict->data[0] = bmp->Y;
-	pict->data[1] = bmp->U;
-	pict->data[2] = bmp->V;
+	ERRPRINTF("HERE!!!");
+	const int in_linesize[1] = { 3 * width };
+	
+	ERRPRINTF("HERE!!!");
+	struct SwsContext *sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24,
+												width, height, AV_PIX_FMT_YUV420P,
+												0, NULL, NULL, NULL);
+	if (!sws_ctx)
+	{
+		ERRPRINTF("Bad sws_getContext");
+	}
+	ERRPRINTF("HERE!!!");
+	sws_scale(sws_ctx, (const framedata_t const *)bmp, in_linesize, 0,
+				height, pict->data, pict->linesize);
+	ERRPRINTF("HERE!!!");
 }
 
 #if 0
@@ -282,7 +261,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 		c->codec_id = codec_id;
 		c->bit_rate = 400000;
 		/* Resolution must be a multiple of two. */
-		c->width    = 1920;//640;
+		c->width    = 3840;//640;
 		c->height   = 1080;//360;
 		/* timebase: This is the fundamental unit of time (in seconds) in terms
          * of which frame timestamps are represented. For fixed-fps content,
@@ -323,7 +302,9 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
 #endif
+	ERRPRINTF("HERE!!!");
 	fill_yuv_image(ost->frame, c->width, c->height, bmp);
+	ERRPRINTF("HERE!!!");
 	ost->frame->pts = ost->next_pts++;
 	return ost->frame;
 }
@@ -339,7 +320,13 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 	AVFrame *frame;
 	int got_packet = 0;
 	c = ost->st->codec;
+
+	ERRPRINTF("HERE!!!");
+
 	frame = get_video_frame(ost, bmp);
+	
+	ERRPRINTF("HERE!!!");
+	
 	if (oc->oformat->flags & AVFMT_RAWPICTURE) {
 		/* a hack to avoid data copy with some raw video muxers */
 		AVPacket pkt;
@@ -385,12 +372,12 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 int main(int argc, char **argv)
 {
 //	framedata_t* *frames = load_frames("../forbmp/image%03d.bmp", 250);
-	framedata_t* *frames = load_frames("../forbmp1080p/image%05d.bmp", 250);
-	if (!frames)
-	{
-		ERRPRINTF("Bad loading frames\n");
-		return 0;
-	}
+//	framedata_t* *frames = load_frames("../forbmp1080p/image%05d.bmp", 250);
+//	if (!frames)
+//	{
+//		ERRPRINTF("Bad loading frames\n");
+//		return 0;
+//	}
 	
 	const char  *filename	= "output.webm";
 	
@@ -463,22 +450,29 @@ int main(int argc, char **argv)
 		goto err;
 	}
 	
-	framedata_t* *bmp = frames;
-#ifdef MAIN_LOOP_DEBUG_SESSION
-	double time = 0;
-#endif
-	while (encode_video)
+	size_t frame_ind = 1;
+	
+	framedata_t** bmp = NULL;
+	while (encode_video && frame_ind < STREAM_NB_FRAMES && !(load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++)))
 	{
-		encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
+	
+#ifdef MAIN_LOOP_DEBUG_SESSION
+		double time = 0;
+#endif
+//		while (encode_video)
+//		{
+		encode_video = (int)(write_video_frame(oc, &video_st, bmp) == 0);
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		time++;
 		if ((int)time % 10 == 0)
 		{
-			bmp = frames;
+			frame_ind = 1;
 		}
 		printf("\rVideo duration: %.3fs", time / STREAM_FRAME_RATE);
 		fflush(stdout);
 #endif
+		free(bmp);
+//		}
 	}
 	
 	av_write_trailer(oc);

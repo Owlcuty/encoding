@@ -79,14 +79,7 @@ typedef struct
 	DWORD	biAlphaMask;
 } bitmapinfo_t;
 
-typedef struct
-{
-	BYTE *Y;
-	BYTE *U;
-	BYTE *V;
-	
-	size_t size;
-} framedata_t;
+typedef BYTE* framedata_t;
 
 #pragma pack(pop)
 

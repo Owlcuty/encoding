@@ -100,7 +100,6 @@ framedata_t* load_bmp(const char* filename,
 	
 	uint8_t			*tmp_buf	= NULL;
 	uint8_t			*buffer		= NULL;
-	pict_t			frame		= NULL;
 	
 	FILE *file = fopen(filename, "rb");
 	if (!file)
@@ -316,44 +315,38 @@ framedata_t* load_bmp(const char* filename,
 	}
 	memcpy(tmp_buf, cur_pos, bmpinfo.biSizeImage);
 	
-	frame = (pict_t)calloc((*width) * (*height), sizeof(*frame));
-	if (!frame)
+	framedata_t* frame = calloc(4, sizeof(*frame));
+	for (size_t p = 0; p < 4; p++)
 	{
-		perror("calloc() failed");
-		goto err;
+		frame[p] = calloc((*width) * (*height), sizeof(*(frame[p])));
+		if (!frame[p])
+		{
+			perror("calloc() failed");
+			goto err;
+		}
 	}
-	
-	framedata_t *retframe = calloc(1, sizeof(framedata_t));
-	retframe->Y = calloc((*width) * (*height), sizeof(BYTE));
-	retframe->U = calloc((*width) * (*height), sizeof(BYTE));
-	retframe->V = calloc((*width) * (*height), sizeof(BYTE));
-	retframe->size = (*width) * (*height);
+	framedata_t ptrR = frame[0];
+	framedata_t ptrG = frame[1];
+	framedata_t ptrB = frame[2];
 	// BGR -> RGB
-//	uint8_t* ptr = (uint8_t*)frame;
-	uint8_t* ptrY = retframe->Y;
-	uint8_t* ptrU = retframe->U;
-	uint8_t* ptrV = retframe->V;
 	for (size_t y = *height; y > 0; y--)
 	{
 		unsigned char *pRow = tmp_buf + mwidth * (y - 1);
 		for (size_t x = 0; x < *width; x++)
 		{
-			*ptrY++ = Y_TRANSCRIPTION(*(pRow + 2), *(pRow + 1), *pRow);
-			if (x % 2 == 0 && y % 2 == 0)
-			{
-				*ptrU++ = U_TRANSCRIPTION(*(pRow + 2), *(pRow + 1), *pRow);
-				*ptrV++ = V_TRANSCRIPTION(*(pRow + 2), *(pRow + 1), *pRow);
-			}
+			*ptrR++ = *(pRow + 2);
+			*ptrG++ = *(pRow + 1);
+			*ptrB++ = *pRow;
+			pRow  += 3;
 		}
 	}
-	
 	
 	free(tmp_buf);
 	free(buffer);
 	
 	fclose(file);
 	
-	return retframe;
+	return frame;
 	
 err:
 	free(tmp_buf);
