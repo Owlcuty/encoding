@@ -86,5 +86,5 @@ typedef BYTE* framedata_t;
 //int get_filesize(FILE* file);
 //unsigned char bitextract(const DWORD byte, const DWORD mask);
 //int get_padding(DWORD width, WORD bitCount);
-framedata_t* load_bmp(const char* filename, int *width, int *height);
+framedata_t load_bmp(const char* filename, int *width, int *height);
 void YUVfromRGB(double* Y, double* U, double* V, const BYTE R, const BYTE G, const BYTE B);

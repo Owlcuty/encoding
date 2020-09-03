@@ -12,16 +12,20 @@
 
 #include <errno.h>
 
+#include <libavcodec/avcodec.h>
+
 #include <libavutil/avassert.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/opt.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/timestamp.h>
 
+#include <libswscale/swscale.h>
+
 #include <libavformat/avformat.h>
 
-#define STREAM_DURATION		3.0
-#define STREAM_FRAME_RATE	30 /* 25 fps */
+#define STREAM_DURATION		10.0
+#define STREAM_FRAME_RATE	10 /* 25 fps */
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS			0
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
@@ -54,7 +58,7 @@ typedef struct OutputStream {
 
 
 
-errno_t load_frame(framedata_t** data, const char *filename, size_t frame_ind)
+errno_t load_frame(framedata_t* data, const char *filename, size_t frame_ind)
 {
 	assert(filename);
 	
@@ -160,13 +164,10 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	}
 }
 
-
-static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t* bmp)
+static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 {
-	ERRPRINTF("HERE!!!");
-	const int in_linesize[1] = { 3 * width };
+	const int in_linesize[4] = { 3 * width, 0, 0, 0 };
 	
-	ERRPRINTF("HERE!!!");
 	struct SwsContext *sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24,
 												width, height, AV_PIX_FMT_YUV420P,
 												0, NULL, NULL, NULL);
@@ -174,42 +175,17 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t* bm
 	{
 		ERRPRINTF("Bad sws_getContext");
 	}
-	ERRPRINTF("HERE!!!");
-	sws_scale(sws_ctx, (const framedata_t const *)bmp, in_linesize, 0,
+	
+	AVFrame* frame1 = alloc_picture(AV_PIX_FMT_RGB24, width, height);
+	avpicture_fill(frame1, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height);
+	
+	int num_bytes = avpicture_get_size(AV_PIX_FMT_YUV420P, width, height);
+	uint8_t *frame2_buffer = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
+	avpicture_fill((AVPicture*)pict, frame2_buffer, AV_PIX_FMT_YUV420P, width, height);
+	
+	sws_scale(sws_ctx, frame1->data, frame1->linesize, 0,
 				height, pict->data, pict->linesize);
-	ERRPRINTF("HERE!!!");
 }
-
-#if 0
-
-static void fill_rgb_to_gbr_image(AVFrame *pict, int width, int height, framedata_t* bmp)
-{
-	BYTE	R = 0,
-			G = 0,
-			B = 0;
-	
-	pict->data[0] = bmp->green;
-	pict->data[1] = bmp->blue;
-	pict->data[2] = bmp->red;
-	
-//	uint8_t *ptr = (uint8_t *)bmp;
-//	
-//	for (size_t y = 0; y < height; y++)
-//	{
-//		for (size_t x = 0; x < width; x++)
-//		{
-//			R = *ptr++;
-//			G = *ptr++;
-//			B = *ptr++;
-//			pict->data[0][y * pict->linesize[0] + x] = G;
-//			pict->data[1][y * pict->linesize[1] + x] = B;
-//			pict->data[2][y * pict->linesize[2] + x] = R;
-//			ptr++;
-//		}
-//	}
-}
-
-#endif
 
 /* Add an output stream. */
 static void add_stream(OutputStream *ost, AVFormatContext *oc,
@@ -293,7 +269,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 }
 
-static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
+static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
 {
 	AVCodecContext *c = ost->st->codec;
 	/* check if we want to generate more frames */
@@ -302,9 +278,7 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
 #endif
-	ERRPRINTF("HERE!!!");
 	fill_yuv_image(ost->frame, c->width, c->height, bmp);
-	ERRPRINTF("HERE!!!");
 	ost->frame->pts = ost->next_pts++;
 	return ost->frame;
 }
@@ -313,7 +287,7 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
  * encode one video frame and send it to the muxer
  * return 1 when encoding is finished, 0 otherwise
  */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t* bmp)
+static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t bmp)
 {
 	int ret;
 	AVCodecContext *c;
@@ -321,11 +295,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 	int got_packet = 0;
 	c = ost->st->codec;
 
-	ERRPRINTF("HERE!!!");
-
 	frame = get_video_frame(ost, bmp);
-	
-	ERRPRINTF("HERE!!!");
 	
 	if (oc->oformat->flags & AVFMT_RAWPICTURE) {
 		/* a hack to avoid data copy with some raw video muxers */
@@ -371,14 +341,6 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 
 int main(int argc, char **argv)
 {
-//	framedata_t* *frames = load_frames("../forbmp/image%03d.bmp", 250);
-//	framedata_t* *frames = load_frames("../forbmp1080p/image%05d.bmp", 250);
-//	if (!frames)
-//	{
-//		ERRPRINTF("Bad loading frames\n");
-//		return 0;
-//	}
-	
 	const char  *filename	= "output.webm";
 	
 	OutputStream video_st = { 0 };
@@ -452,15 +414,13 @@ int main(int argc, char **argv)
 	
 	size_t frame_ind = 1;
 	
-	framedata_t** bmp = NULL;
+	framedata_t* bmp = NULL;
 	while (encode_video && frame_ind < STREAM_NB_FRAMES && !(load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++)))
 	{
 	
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		double time = 0;
 #endif
-//		while (encode_video)
-//		{
 		encode_video = (int)(write_video_frame(oc, &video_st, bmp) == 0);
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		time++;
@@ -472,7 +432,6 @@ int main(int argc, char **argv)
 		fflush(stdout);
 #endif
 		free(bmp);
-//		}
 	}
 	
 	av_write_trailer(oc);

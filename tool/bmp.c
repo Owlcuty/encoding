@@ -88,7 +88,7 @@ void YUVfromRGB(double* Y, double* U, double* V, const BYTE R, const BYTE G, con
 	*V =  0.439 * R - 0.368 * G - 0.071 * B + 128;
 }
 
-framedata_t* load_bmp(const char* filename,
+framedata_t load_bmp(const char* filename,
 				int *width, int *height)
 {
 	assert(filename);
@@ -315,28 +315,17 @@ framedata_t* load_bmp(const char* filename,
 	}
 	memcpy(tmp_buf, cur_pos, bmpinfo.biSizeImage);
 	
-	framedata_t* frame = calloc(4, sizeof(*frame));
-	for (size_t p = 0; p < 4; p++)
-	{
-		frame[p] = calloc((*width) * (*height), sizeof(*(frame[p])));
-		if (!frame[p])
-		{
-			perror("calloc() failed");
-			goto err;
-		}
-	}
-	framedata_t ptrR = frame[0];
-	framedata_t ptrG = frame[1];
-	framedata_t ptrB = frame[2];
+	framedata_t frame = calloc(4 * (*width) * (*height), sizeof(*frame));
+	uint8_t *ptr = frame;
 	// BGR -> RGB
 	for (size_t y = *height; y > 0; y--)
 	{
 		unsigned char *pRow = tmp_buf + mwidth * (y - 1);
 		for (size_t x = 0; x < *width; x++)
 		{
-			*ptrR++ = *(pRow + 2);
-			*ptrG++ = *(pRow + 1);
-			*ptrB++ = *pRow;
+			*ptr++ = *(pRow + 2);
+			*ptr++ = *(pRow + 1);
+			*ptr++ = *pRow;
 			pRow  += 3;
 		}
 	}
