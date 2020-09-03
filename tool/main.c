@@ -1,5 +1,3 @@
-// Я сейчас заплачу. Codelite крашнулся и выплюнул мне старый свап, который вообще наполовину стёрт.............
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -19,6 +17,7 @@
 #include <libavutil/opt.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/timestamp.h>
+#include <libavutil/imgutils.h>
 
 #include <libswscale/swscale.h>
 
@@ -164,10 +163,8 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	}
 }
 
-static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
+static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp) // void -> errno_t
 {
-	const int in_linesize[4] = { 3 * width, 0, 0, 0 };
-	
 	struct SwsContext *sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24,
 												width, height, AV_PIX_FMT_YUV420P,
 												0, NULL, NULL, NULL);
@@ -177,14 +174,19 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp
 	}
 	
 	AVFrame* frame1 = alloc_picture(AV_PIX_FMT_RGB24, width, height);
-	avpicture_fill(frame1, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height);
+	avpicture_fill((AVPicture*)frame1, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height);
 	
-	int num_bytes = avpicture_get_size(AV_PIX_FMT_YUV420P, width, height);
-	uint8_t *frame2_buffer = (uint8_t*)av_malloc(num_bytes * sizeof(uint8_t));
-	avpicture_fill((AVPicture*)pict, frame2_buffer, AV_PIX_FMT_YUV420P, width, height);
+	int ret = av_image_alloc(pict->data, pict->linesize, pict->width, pict->height, AV_PIX_FMT_YUV420P, 32);
+	if (ret < 0)
+	{
+		ERRPRINTF("Could not allocate raw picture buffer");
+		exit(1);
+	}
 	
-	sws_scale(sws_ctx, frame1->data, frame1->linesize, 0,
+	sws_scale(sws_ctx, (const uint8_t * const *)frame1->data, frame1->linesize, 0,
 				height, pict->data, pict->linesize);
+	
+	av_frame_free(&frame1);
 }
 
 /* Add an output stream. */
@@ -415,7 +417,7 @@ int main(int argc, char **argv)
 	size_t frame_ind = 1;
 	
 	framedata_t* bmp = NULL;
-	while (encode_video && frame_ind < STREAM_NB_FRAMES && !(load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++)))
+	while (encode_video && !(load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++)))
 	{
 	
 #ifdef MAIN_LOOP_DEBUG_SESSION
