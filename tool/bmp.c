@@ -89,7 +89,7 @@ void YUVfromRGB(double* Y, double* U, double* V, const BYTE R, const BYTE G, con
 }
 
 framedata_t load_bmp(const char* filename,
-				int *width, int *height)
+                     int *width, int *height)
 {
 	assert(filename);
 	assert(width);
@@ -326,6 +326,11 @@ framedata_t load_bmp(const char* filename,
 			*ptr++ = *(pRow + 2);
 			*ptr++ = *(pRow + 1);
 			*ptr++ = *pRow;
+			
+			*r_ptr++ = *(pRow + 2);
+			*g_ptr++ = *(pRow + 1);
+			*b_ptr++ = *pRow;
+			
 			pRow  += 3;
 		}
 	}
@@ -335,7 +340,7 @@ framedata_t load_bmp(const char* filename,
 	
 	fclose(file);
 	
-	return frame;
+	return retframe;
 	
 err:
 	free(tmp_buf);
