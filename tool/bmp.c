@@ -81,8 +81,15 @@ int get_padding(DWORD width, WORD bitCount)
 	return ((width * (bitCount / 8)) % 4) & 3;
 }
 
-framedata_t* load_bmp(const char* filename,
-				int *width, int *height)
+void YUVfromRGB(double* Y, double* U, double* V, const BYTE R, const BYTE G, const BYTE B)
+{
+	*Y =  0.257 * R + 0.504 * G + 0.098 * B +  16;
+	*U = -0.148 * R - 0.291 * G + 0.439 * B + 128;
+	*V =  0.439 * R - 0.368 * G - 0.071 * B + 128;
+}
+
+framedata_t load_bmp(const char* filename,
+                     int *width, int *height)
 {
 	assert(filename);
 	assert(width);
@@ -93,7 +100,6 @@ framedata_t* load_bmp(const char* filename,
 	
 	uint8_t			*tmp_buf	= NULL;
 	uint8_t			*buffer		= NULL;
-	pict_t			frame		= NULL;
 	
 	FILE *file = fopen(filename, "rb");
 	if (!file)
@@ -309,23 +315,9 @@ framedata_t* load_bmp(const char* filename,
 	}
 	memcpy(tmp_buf, cur_pos, bmpinfo.biSizeImage);
 	
-	frame = (pict_t)calloc((*width) * (*height), sizeof(*frame));
-	if (!frame)
-	{
-		perror("calloc() failed");
-		goto err;
-	}
-	
-	framedata_t *retframe = calloc(1, sizeof(framedata_t));
-	retframe->red	= calloc((*width) * (*height), sizeof(BYTE));
-	retframe->blue	= calloc((*width) * (*height), sizeof(BYTE));
-	retframe->green	= calloc((*width) * (*height), sizeof(BYTE));
-	retframe->size	= (*width) * (*height);
+	framedata_t frame = calloc(4 * (*width) * (*height), sizeof(*frame));
+	uint8_t *ptr = frame;
 	// BGR -> RGB
-	uint8_t* ptr = (uint8_t*)frame;
-	uint8_t* r_ptr = retframe->red;
-	uint8_t* g_ptr = retframe->blue;
-	uint8_t* b_ptr = retframe->green;
 	for (size_t y = *height; y > 0; y--)
 	{
 		unsigned char *pRow = tmp_buf + mwidth * (y - 1);
@@ -340,10 +332,8 @@ framedata_t* load_bmp(const char* filename,
 			*b_ptr++ = *pRow;
 			
 			pRow  += 3;
-			ptr++;
 		}
 	}
-	
 	
 	free(tmp_buf);
 	free(buffer);

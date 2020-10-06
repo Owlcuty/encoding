@@ -10,17 +10,22 @@
 
 #include <errno.h>
 
+#include <libavcodec/avcodec.h>
+
 #include <libavutil/avassert.h>
 #include <libavutil/channel_layout.h>
 #include <libavutil/opt.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/timestamp.h>
+#include <libavutil/imgutils.h>
+
+#include <libswscale/swscale.h>
 
 #include <libavformat/avformat.h>
 
 #define STREAM_DURATION		10.0
-#define STREAM_FRAME_RATE	25 /* 25 fps */
-#define STREAM_PIX_FMT		AV_PIX_FMT_GBRP /* default pix_fmt */
+#define STREAM_FRAME_RATE	10 /* 25 fps */
+#define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS			0
 #define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 
@@ -35,6 +40,7 @@
 #define MAIN_DEBUG_SESSION
 //#define MAIN_LOOP_DEBUG_SESSION
 
+#define MAIN_VIDEO_CODEC_ID AV_CODEC_ID_VP8
 
 typedef int errno_t;
 
@@ -51,66 +57,33 @@ typedef struct OutputStream {
 
 
 
-/////* Necessary to free return value! */
-framedata_t* *load_frames(const char *filename, size_t num)
+errno_t load_frame(framedata_t* data, const char *filename, size_t frame_ind)
 {
 	assert(filename);
-	
-	framedata_t* *data = NULL;
 	
 	int width  = 0;
 	int height = 0;
 	
 	char *cur_filename = (char*)calloc(strlen(filename) + 1, sizeof(*cur_filename));
 	
-	framedata_t* cur_pict = NULL;
-	framedata_t* *cur_pos = data;
+	sprintf(cur_filename, filename, frame_ind);
 	
-	for (int frame = 1; frame <= num; frame++)
+	*data = load_bmp((const char*)cur_filename, &width, &height);
+	if (!(*data))
 	{
-		sprintf(cur_filename, filename, frame);
-
-		cur_pict = load_bmp((const char*)cur_filename, &width, &height);
-		if (!cur_pict)
-		{
-			ERRPRINTF("Bad loading bmp\n");
-			goto err;
-		}
-		
-		if (frame == 1)
-		{
-			data = (framedata_t**)calloc(width * height * num, sizeof(*data));
-			if (!data)
-			{
-				perror("calloc() load_frames::data failed");
-				goto err;
-			}
-#ifdef MAIN_DEBUG_SESSION
-			printf("%s::%d::%s:: For data was alloced %d bytes\n", __FILENAME__, __LINE__, __PRETTY_FUNCTION__, width * height * num);
-#endif
-			cur_pos = data;
-		}
-		
-#ifdef MAIN_DEBUG_SESSION
-	printf("%d::%s::%s Data [%X] -- Cur_pos [%X]. Width {%d}, Height {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
-							data,		cur_pos,
-														width,		height);
-	printf("%d::%s::%s Cur_pict [%X] \n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, cur_pict);
-#endif
-		
-		*cur_pos = cur_pict;
-		cur_pos++;
+		ERRPRINTF("Bad loading bmp\n");
+		goto err;
 	}
 	
 	free(cur_filename);
 	
-	return data;
+	return 0;
 	
 err:
 	free(cur_filename);
-	free(cur_pict);
+	free(data);
 	
-	return NULL;
+	return errno;
 }
 
 AVFrame *picture, *tmp_picture;
@@ -181,8 +154,8 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	* picture is needed too. It is then converted to the required
 	* output format. */
 	ost->tmp_frame = NULL;
-	if (c->pix_fmt != AV_PIX_FMT_GBRP) {
-		ost->tmp_frame = alloc_picture(AV_PIX_FMT_GBRP, c->width, c->height);
+	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
+		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
 		if (!ost->tmp_frame) {
 			fprintf(stderr, "Could not allocate temporary picture\n");
 			exit(1);
@@ -190,32 +163,30 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	}
 }
 
-
-static void fill_rgb_to_gbr_image(AVFrame *pict, int width, int height, framedata_t* bmp)
+static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp) // void -> errno_t
 {
-	BYTE	R = 0,
-			G = 0,
-			B = 0;
+	struct SwsContext *sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24,
+												width, height, AV_PIX_FMT_YUV420P,
+												0, NULL, NULL, NULL);
+	if (!sws_ctx)
+	{
+		ERRPRINTF("Bad sws_getContext");
+	}
 	
-	pict->data[0] = bmp->green;
-	pict->data[1] = bmp->blue;
-	pict->data[2] = bmp->red;
+	AVFrame* frame1 = alloc_picture(AV_PIX_FMT_RGB24, width, height);
+	avpicture_fill((AVPicture*)frame1, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height);
 	
-//	uint8_t *ptr = (uint8_t *)bmp;
-//	
-//	for (size_t y = 0; y < height; y++)
-//	{
-//		for (size_t x = 0; x < width; x++)
-//		{
-//			R = *ptr++;
-//			G = *ptr++;
-//			B = *ptr++;
-//			pict->data[0][y * pict->linesize[0] + x] = G;
-//			pict->data[1][y * pict->linesize[1] + x] = B;
-//			pict->data[2][y * pict->linesize[2] + x] = R;
-//			ptr++;
-//		}
-//	}
+	int ret = av_image_alloc(pict->data, pict->linesize, pict->width, pict->height, AV_PIX_FMT_YUV420P, 32);
+	if (ret < 0)
+	{
+		ERRPRINTF("Could not allocate raw picture buffer");
+		exit(1);
+	}
+	
+	sws_scale(sws_ctx, (const uint8_t * const *)frame1->data, frame1->linesize, 0,
+				height, pict->data, pict->linesize);
+	
+	av_frame_free(&frame1);
 }
 
 /* Add an output stream. */
@@ -268,8 +239,8 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 		c->codec_id = codec_id;
 		c->bit_rate = 400000;
 		/* Resolution must be a multiple of two. */
-		c->width    = 640;
-		c->height   = 360;
+		c->width    = 3840;//640;
+		c->height   = 1080;//360;
 		/* timebase: This is the fundamental unit of time (in seconds) in terms
          * of which frame timestamps are represented. For fixed-fps content,
          * timebase should be 1/framerate and timestamp increments should be
@@ -300,7 +271,7 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 }
 
-static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
+static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
 {
 	AVCodecContext *c = ost->st->codec;
 	/* check if we want to generate more frames */
@@ -309,7 +280,7 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
 #endif
-	fill_rgb_to_gbr_image(ost->frame, c->width, c->height, bmp);
+	fill_yuv_image(ost->frame, c->width, c->height, bmp);
 	ost->frame->pts = ost->next_pts++;
 	return ost->frame;
 }
@@ -318,14 +289,16 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t* bmp)
  * encode one video frame and send it to the muxer
  * return 1 when encoding is finished, 0 otherwise
  */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t* bmp)
+static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t bmp)
 {
 	int ret;
 	AVCodecContext *c;
 	AVFrame *frame;
 	int got_packet = 0;
 	c = ost->st->codec;
+
 	frame = get_video_frame(ost, bmp);
+	
 	if (oc->oformat->flags & AVFMT_RAWPICTURE) {
 		/* a hack to avoid data copy with some raw video muxers */
 		AVPacket pkt;
@@ -370,14 +343,7 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 
 int main(int argc, char **argv)
 {
-	framedata_t* *frames = load_frames("../forbmp/image%03d.bmp", 250);
-	if (!frames)
-	{
-		ERRPRINTF("Bad loading frames\n");
-		return 0;
-	}
-	
-	const char  *filename	= "output.mp4";
+	const char  *filename	= "output.webm";
 	
 	OutputStream video_st = { 0 };
 	
@@ -396,7 +362,7 @@ int main(int argc, char **argv)
 	if (!oc)
 	{
 		printf("ffmpeg: Could not deduce output format file extension: using MPEG.\n");
-		avformat_alloc_output_context2(&oc, NULL, "mpeg", filename);
+		avformat_alloc_output_context2(&oc, NULL, "webm", filename);
 	}
 	if (!oc)
 	{
@@ -417,7 +383,7 @@ int main(int argc, char **argv)
 		goto err;
 	}
 	
-	fmt->video_codec = AV_CODEC_ID_VP9;
+	fmt->video_codec = MAIN_VIDEO_CODEC_ID;
 	
 	if (fmt->video_codec != AV_CODEC_ID_NONE)
 	{
@@ -448,22 +414,26 @@ int main(int argc, char **argv)
 		goto err;
 	}
 	
-	framedata_t* *bmp = frames;
-#ifdef MAIN_LOOP_DEBUG_SESSION
-	double time = 0;
-#endif
-	while (encode_video)
+	size_t frame_ind = 1;
+	
+	framedata_t* bmp = NULL;
+	while (encode_video && !(load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++)))
 	{
-		encode_video = (int)(write_video_frame(oc, &video_st, *bmp++) == NULL);
+	
+#ifdef MAIN_LOOP_DEBUG_SESSION
+		double time = 0;
+#endif
+		encode_video = (int)(write_video_frame(oc, &video_st, bmp) == 0);
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		time++;
 		if ((int)time % 10 == 0)
 		{
-			bmp = frames;
+			frame_ind = 1;
 		}
 		printf("\rVideo duration: %.3fs", time / STREAM_FRAME_RATE);
 		fflush(stdout);
 #endif
+		free(bmp);
 	}
 	
 	av_write_trailer(oc);
