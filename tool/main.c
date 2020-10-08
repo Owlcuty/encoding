@@ -25,7 +25,7 @@
 
 #include <libavformat/avformat.h>
 
-#define STREAM_DURATION		10.0
+#define STREAM_DURATION		30.0
 #define STREAM_FRAME_RATE	10 /* 25 fps */
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS			0
@@ -43,6 +43,53 @@
 //#define MAIN_LOOP_DEBUG_SESSION
 
 #define MAIN_VIDEO_CODEC_ID AV_CODEC_ID_VP9
+
+
+typedef struct dict_codec_context
+{
+	const AVDictionaryEntry *param;
+	size_t cnt;
+} dict_ccontext_t;
+
+/* vp8 context -----------*/
+const AVDictionaryEntry _vp8_dict[4] = {
+	{"arnr-maxframes", "15"},
+	{"deadline", "realtime"},
+	{"cpu-used", "16"},
+	{"crf", "4"}
+};
+
+const dict_ccontext_t _vp8_context = {
+	_vp8_dict,
+	4
+};
+//--------------------------
+
+
+/* vp9 context -----------*/
+const AVDictionaryEntry _vp9_dict[4] = {
+	{"arnr-maxframes", "15"},
+	{"deadline", "realtime"},
+	{"cpu-used", "8"},
+	{"crf", "0"}
+};
+
+const dict_ccontext_t _vp9_context = {
+	_vp9_dict,
+	4
+};
+//--------------------------
+
+
+void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt)
+{
+	for (size_t p_id = 0; p_id < ctx.cnt; p_id++)
+	{
+		av_dict_set(opt, ctx.param[p_id].key, ctx.param[p_id].value, 0);
+	}
+}
+
+
 
 typedef int errno_t;
 
@@ -398,16 +445,39 @@ int main(int argc, char **argv)
 	
 	if (have_video)
 	{
-		
-//#if 0
-		if (fmt->video_codec == AV_CODEC_ID_VP8 || fmt->video_codec == AV_CODEC_ID_VP9)
+		switch(fmt->video_codec)
 		{
-			av_dict_set_int(&opt, "cpu-used", 8, 0);
-			av_dict_set_int(&opt, "arnr-maxframes", 15, 0);
-//			av_dict_set_int(&opt, "lag-in-frames", 16, 0);
-		} 
-//#endif
-		
+			case AV_CODEC_ID_VP9:
+				set_dict_context(_vp9_context, &opt);
+				break;
+			case AV_CODEC_ID_VP8:
+				set_dict_context(_vp8_context, &opt);
+				break;
+			default:
+				ERRPRINTF("Wtf man");
+				break;
+		}
+
+
+//#define JUST_FOR_TEST_VP9
+#ifdef JUST_FOR_TEST_VP9
+		dict_ccontext_t ctx = _vp9_context;
+		for (size_t p_id = 0; p_id < 4; p_id++)
+		{
+			AVDictionaryEntry* tempvar = NULL;
+			
+			if ((tempvar = av_dict_get(opt, ctx.param[p_id].key, NULL, 0)) == NULL)
+			{
+				ERRPRINTF("Can't find %s", ctx.param[p_id].key);
+			}
+			else
+			{
+				ERRPRINTF("%s -> %s", tempvar->key, tempvar->value);
+			}
+			
+		}
+#endif
+	
 		open_video(oc, video_codec, &video_st, opt);
 	}
 	
