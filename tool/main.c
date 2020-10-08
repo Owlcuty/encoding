@@ -7,6 +7,8 @@
 #include <assert.h>
 //#define NDEBUG
 
+#include <time.h>
+
 
 #include <errno.h>
 
@@ -40,7 +42,7 @@
 #define MAIN_DEBUG_SESSION
 //#define MAIN_LOOP_DEBUG_SESSION
 
-#define MAIN_VIDEO_CODEC_ID AV_CODEC_ID_VP8
+#define MAIN_VIDEO_CODEC_ID AV_CODEC_ID_VP9
 
 typedef int errno_t;
 
@@ -174,7 +176,8 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp
 	}
 	
 	AVFrame* frame1 = alloc_picture(AV_PIX_FMT_RGB24, width, height);
-	avpicture_fill((AVPicture*)frame1, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height);
+//	avpicture_fill((AVPicture*)frame1, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height);
+	av_image_fill_arrays(frame1->data, frame1->linesize, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height, 1);
 	
 	int ret = av_image_alloc(pict->data, pict->linesize, pict->width, pict->height, AV_PIX_FMT_YUV420P, 32);
 	if (ret < 0)
@@ -182,6 +185,7 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp
 		ERRPRINTF("Could not allocate raw picture buffer");
 		exit(1);
 	}
+	
 	
 	sws_scale(sws_ctx, (const uint8_t * const *)frame1->data, frame1->linesize, 0,
 				height, pict->data, pict->linesize);
@@ -373,7 +377,7 @@ int main(int argc, char **argv)
 	fmt = oc->oformat;
 	if (!fmt)
 	{
-		printf("%d:: Could not deduce output format from file extension: using MPEG.");
+		printf("%d:: Could not deduce output format from file extension: using MPEG.", __LINE__);
 		fmt = av_guess_format("mpeg", NULL, NULL);
 		oc->oformat = fmt;
 	}
@@ -393,7 +397,19 @@ int main(int argc, char **argv)
 	}
 	
 	if (have_video)
+	{
+		
+//#if 0
+		if (fmt->video_codec == AV_CODEC_ID_VP8 || fmt->video_codec == AV_CODEC_ID_VP9)
+		{
+			av_dict_set_int(&opt, "cpu-used", 8, 0);
+			av_dict_set_int(&opt, "arnr-maxframes", 15, 0);
+//			av_dict_set_int(&opt, "lag-in-frames", 16, 0);
+		} 
+//#endif
+		
 		open_video(oc, video_codec, &video_st, opt);
+	}
 	
 	av_dump_format(oc, 0, filename, 1);
 	
@@ -416,6 +432,8 @@ int main(int argc, char **argv)
 	
 	size_t frame_ind = 1;
 	
+	time_t start = time(NULL);
+	
 	framedata_t* bmp = NULL;
 	while (encode_video && !(load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++)))
 	{
@@ -435,6 +453,9 @@ int main(int argc, char **argv)
 #endif
 		free(bmp);
 	}
+	
+	time_t finish = time(NULL);
+	ERRPRINTF("%lf sec for %zu frames", difftime(finish, start), frame_ind);
 	
 	av_write_trailer(oc);
 	

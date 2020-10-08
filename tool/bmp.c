@@ -81,13 +81,6 @@ int get_padding(DWORD width, WORD bitCount)
 	return ((width * (bitCount / 8)) % 4) & 3;
 }
 
-void YUVfromRGB(double* Y, double* U, double* V, const BYTE R, const BYTE G, const BYTE B)
-{
-	*Y =  0.257 * R + 0.504 * G + 0.098 * B +  16;
-	*U = -0.148 * R - 0.291 * G + 0.439 * B + 128;
-	*V =  0.439 * R - 0.368 * G - 0.071 * B + 128;
-}
-
 framedata_t load_bmp(const char* filename,
                      int *width, int *height)
 {
@@ -327,10 +320,6 @@ framedata_t load_bmp(const char* filename,
 			*ptr++ = *(pRow + 1);
 			*ptr++ = *pRow;
 			
-			*r_ptr++ = *(pRow + 2);
-			*g_ptr++ = *(pRow + 1);
-			*b_ptr++ = *pRow;
-			
 			pRow  += 3;
 		}
 	}
@@ -340,7 +329,7 @@ framedata_t load_bmp(const char* filename,
 	
 	fclose(file);
 	
-	return retframe;
+	return frame;
 	
 err:
 	free(tmp_buf);

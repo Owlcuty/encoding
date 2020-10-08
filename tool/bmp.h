@@ -10,11 +10,6 @@
 #define BMP_PRINT_DUMP_HU(num)	printf("\t %20s = %8hu (size = %d) [%X],\n",	#num,		num, sizeof(num), &num);
 #define BMP_PRINT_DUMP_X(num)	printf("\t %20s = %8X (size = %d) [%X],\n",		#num,		num, sizeof(num), &num);
 
-#define Y_TRANSCRIPTION(R, G, B) 0.257 * R + 0.504 * G + 0.098 * B +  16
-#define U_TRANSCRIPTION(R, G, B) -0.148 * R - 0.291 * G + 0.439 * B + 128
-#define V_TRANSCRIPTION(R, G, B) 0.439 * R - 0.368 * G - 0.071 * B + 128
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -88,4 +83,3 @@ typedef BYTE* framedata_t;
 //unsigned char bitextract(const DWORD byte, const DWORD mask);
 //int get_padding(DWORD width, WORD bitCount);
 framedata_t load_bmp(const char* filename, int *width, int *height);
-void YUVfromRGB(double* Y, double* U, double* V, const BYTE R, const BYTE G, const BYTE B);
