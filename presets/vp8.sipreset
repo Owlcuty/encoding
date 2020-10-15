@@ -1,0 +1,17 @@
+vcodec=libvpx
+
+deadline=realtime
+cpu-used=8
+lag-in-frames=16
+vprofile=0
+qmax=63
+qmin=0
+b=768k
+g=120
+
+maxrate=1.5M
+minrate=40k
+auto-alt-ref=1
+arnr-maxframes=15
+arnr-strength=5
+arnr-type=centered

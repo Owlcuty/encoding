@@ -25,11 +25,10 @@
 
 #include <libavformat/avformat.h>
 
-#define STREAM_DURATION		30.0
+#define STREAM_DURATION		60.0
 #define STREAM_FRAME_RATE	10 /* 25 fps */
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS			0
-#define STREAM_NB_FRAMES	((int)(STREAM_DURATION * STREAM_FRAME_RATE))
 
 #include "bmp.h"
 
@@ -67,16 +66,27 @@ const dict_ccontext_t _vp8_context = {
 
 
 /* vp9 context -----------*/
-const AVDictionaryEntry _vp9_dict[4] = {
-	{"arnr-maxframes", "15"},
+const AVDictionaryEntry _vp9_dict[] = {
 	{"deadline", "realtime"},
 	{"cpu-used", "8"},
-	{"crf", "0"}
+	{"lag-in-frames", "16"},
+	{"vprofile", "0"},
+	{"qmax", "63"},
+	{"qmin", "0"},
+	{"b", "768k"},
+	{"g", "120"},
+	
+	{"maxrate", "1.5M"},
+	{"minrate", "40k"},
+	{"auto-alt-ref", "1"},
+	{"arnr-maxframes", "15"},
+	{"arnr-strength", "5"},
+	{"arnr-type", "centered"}
 };
 
 const dict_ccontext_t _vp9_context = {
 	_vp9_dict,
-	4
+	14
 };
 //--------------------------
 
@@ -130,7 +140,7 @@ errno_t load_frame(framedata_t* data, const char *filename, size_t frame_ind)
 	
 err:
 	free(cur_filename);
-	free(data);
+	free(*data);
 	
 	return errno;
 }
@@ -290,8 +300,10 @@ static void add_stream(OutputStream *ost, AVFormatContext *oc,
 		c->codec_id = codec_id;
 		c->bit_rate = 400000;
 		/* Resolution must be a multiple of two. */
-		c->width    = 3840;//640;
-		c->height   = 1080;//360;
+		c->width    = 1366;//640;
+//		c->width    = 3840;//640;
+		c->height   = 768;//360;
+//		c->height   = 1080;//360;
 		/* timebase: This is the fundamental unit of time (in seconds) in terms
          * of which frame timestamps are represented. For fixed-fps content,
          * timebase should be 1/framerate and timestamp increments should be
@@ -366,12 +378,32 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 	} else {
 		AVPacket pkt = { 0 };
 		av_init_packet(&pkt);
+
 		/* encode the image */
-		ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+//		ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+		ret = avcodec_send_frame(c, frame); // necessary to fix with ffmpeg 3.0
 		if (ret < 0) {
-			fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+			ERRPRINTF("Error sending frame for encoding: %s\n", av_err2str(ret));
 			exit(1);
 		}
+		while (ret >= 0)
+		{
+			ret = avcodec_receive_packet(c, &pkt);
+			if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret == AVERROR(EINVAL))
+			{
+				return 1;
+			}
+			else if (ret < 0)
+			{
+				ERRPRINTF("Error during encoding (receive frame)");
+				exit(1);
+			}
+			else
+			{
+				av_packet_unref(&pkt);
+			}
+		}
+		
 		if (got_packet) {
 			ret = write_frame(oc, &c->time_base, ost->st, &pkt);
 		} else {
@@ -459,10 +491,10 @@ int main(int argc, char **argv)
 		}
 
 
-//#define JUST_FOR_TEST_VP9
+#define JUST_FOR_TEST_VP9
 #ifdef JUST_FOR_TEST_VP9
 		dict_ccontext_t ctx = _vp9_context;
-		for (size_t p_id = 0; p_id < 4; p_id++)
+		for (size_t p_id = 0; p_id < 14; p_id++)
 		{
 			AVDictionaryEntry* tempvar = NULL;
 			
@@ -505,7 +537,7 @@ int main(int argc, char **argv)
 	time_t start = time(NULL);
 	
 	framedata_t* bmp = NULL;
-	while (encode_video && !(load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++)))
+	while (encode_video && !(load_frame(&bmp, "../../forbmp/image%05d.bmp", frame_ind++)))
 	{
 	
 #ifdef MAIN_LOOP_DEBUG_SESSION
