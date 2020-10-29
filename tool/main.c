@@ -25,6 +25,7 @@
 
 #include <libavformat/avformat.h>
 
+
 #define STREAM_DURATION		60.0
 #define STREAM_FRAME_RATE	10 /* 25 fps */
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
@@ -40,6 +41,8 @@
 
 #define MAIN_DEBUG_SESSION
 //#define MAIN_LOOP_DEBUG_SESSION
+
+#define FFVER_3_0
 
 #define MAIN_VIDEO_CODEC_ID AV_CODEC_ID_VP9
 
@@ -209,7 +212,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 		fprintf(stderr, "Could not allocate video frame\n");
 		exit(1);
 	}
-	/* If the output format is not GBRP, then a temporary GBRP
+	/* If the output format is not YUV420P, then a temporary YUV420P
 	* picture is needed too. It is then converted to the required
 	* output format. */
 	ost->tmp_frame = NULL;
@@ -250,88 +253,182 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp
 	av_frame_free(&frame1);
 }
 
-/* Add an output stream. */
-static void add_stream(OutputStream *ost, AVFormatContext *oc,
-					   AVCodec **codec,
-					   enum AVCodecID codec_id)
+
+errno_t init_codec(AVCodecParameters** cparams,
+				   AVCodec** codec,
+				   AVDictionary** opt,
+				   enum AVCodecID codec_id,
+				   int height, int width)
 {
-	AVCodecContext *c;
-	int i;
+	assert(cparams != NULL);
+	assert(codec != NULL);
+
+	av_register_all();
+
+	int ret = 0;
+
 	/* find the encoder */
 	*codec = avcodec_find_encoder(codec_id);
-	if (!(*codec)) {
-		fprintf(stderr, "Could not find encoder for '%s'\n",
-				avcodec_get_name(codec_id));
-		exit(1);
+	if (!(*codec))
+	{
+		ERRPRINTF("Could not find encoder for '%s'", avcodec_get_name(codec_id));
+		return -1;
 	}
-	ost->st = avformat_new_stream(oc, *codec);
+
+	*cparams = avcodec_parameters_alloc();
+//	*ctx = avcodec_alloc_context3(*codec);
+	if (!(*cparams))
+	{
+		ERRPRINTF("Could not allocate codec parameters");
+		return -1;
+	}
+
+	switch ((*codec)->type) {
+	case AVMEDIA_TYPE_AUDIO:
+		// ?
+		/*
+		*ctx->sample_fmt  = (*codec)->sample_fmts ?
+			(*codec)->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
+		*/
+		// ?
+		(*cparams)->bit_rate    = 64000;
+		(*cparams)->sample_rate = 44100;
+		if ((*codec)->supported_samplerates) {
+			(*cparams)->sample_rate = (*codec)->supported_samplerates[0];
+			for (int i = 0; (*codec)->supported_samplerates[i]; i++) {
+				if ((*codec)->supported_samplerates[i] == 44100)
+					(*cparams)->sample_rate = 44100;
+			}
+		}
+		(*cparams)->channels       = av_get_channel_layout_nb_channels((*cparams)->channel_layout);
+		(*cparams)->channel_layout = AV_CH_LAYOUT_STEREO;
+		if ((*codec)->channel_layouts) {
+			(*cparams)->channel_layout = (*codec)->channel_layouts[0];
+			for (int i = 0; (*codec)->channel_layouts[i]; i++) {
+				if ((*codec)->channel_layouts[i] == AV_CH_LAYOUT_STEREO)
+					(*cparams)->channel_layout = AV_CH_LAYOUT_STEREO;
+			}
+		}
+		(*cparams)->channels        = av_get_channel_layout_nb_channels((*cparams)->channel_layout);
+		break;
+	case AVMEDIA_TYPE_VIDEO:
+		(*cparams)->codec_id = codec_id;
+		(*cparams)->bit_rate = 400000;
+		/* Resolution must be a multiple of two. */
+		(*cparams)->width    = width; //1366;//640;
+		(*cparams)->height   = height; //768;//360;
+
+	break;
+	default:
+		break;
+	}
+	//		ost->st->time_base = (AVRational){ 1, c->sample_rate };
+
+	ret = av_dict_copy(opt, NULL, 0);
+	if (ret < 0)
+	{
+		ERRPRINTF("Bad alloc dict");
+		return -1;
+	}
+
+	switch(codec_id)
+	{
+		case AV_CODEC_ID_VP9:
+			set_dict_context(_vp9_context, opt);
+			break;
+		case AV_CODEC_ID_VP8:
+			set_dict_context(_vp8_context, opt);
+			break;
+		default:
+			ERRPRINTF("Wtf man");
+			break;
+	}
+
+
+#define JUST_FOR_TEST_VP9
+#ifdef JUST_FOR_TEST_VP9
+	dict_ccontext_t ctx = _vp9_context;
+	for (size_t p_id = 0; p_id < 14; p_id++)
+	{
+		AVDictionaryEntry* tempvar = NULL;
+		
+		if ((tempvar = av_dict_get(*opt, ctx.param[p_id].key, NULL, 0)) == NULL)
+		{
+			ERRPRINTF("Can't find %s", ctx.param[p_id].key);
+		}
+		else
+		{
+			ERRPRINTF("%s -> %s", tempvar->key, tempvar->value);
+		}
+		
+	}
+#endif
+
+
+}
+
+/* Add an output stream. */
+static void add_stream(OutputStream *ost, AVFormatContext *oc,
+					   AVCodec *codec,
+					   const AVCodecParameters *cparams)
+{
+	int ret = 0;
+
+	ost->st = avformat_new_stream(oc, codec);
 	if (!ost->st) {
 		fprintf(stderr, "Could not allocate stream\n");
 		exit(1);
 	}
 	ost->st->id = oc->nb_streams - 1;
-	c = ost->st->codec;
-	switch ((*codec)->type) {
-	case AVMEDIA_TYPE_AUDIO:
-		c->sample_fmt  = (*codec)->sample_fmts ?
-			(*codec)->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
-		c->bit_rate    = 64000;
-		c->sample_rate = 44100;
-		if ((*codec)->supported_samplerates) {
-			c->sample_rate = (*codec)->supported_samplerates[0];
-			for (i = 0; (*codec)->supported_samplerates[i]; i++) {
-				if ((*codec)->supported_samplerates[i] == 44100)
-					c->sample_rate = 44100;
-			}
-		}
-		c->channels        = av_get_channel_layout_nb_channels(c->channel_layout);
-		c->channel_layout = AV_CH_LAYOUT_STEREO;
-		if ((*codec)->channel_layouts) {
-			c->channel_layout = (*codec)->channel_layouts[0];
-			for (i = 0; (*codec)->channel_layouts[i]; i++) {
-				if ((*codec)->channel_layouts[i] == AV_CH_LAYOUT_STEREO)
-					c->channel_layout = AV_CH_LAYOUT_STEREO;
-			}
-		}
-		c->channels        = av_get_channel_layout_nb_channels(c->channel_layout);
-		ost->st->time_base = (AVRational){ 1, c->sample_rate };
-		break;
-	case AVMEDIA_TYPE_VIDEO:
-		c->codec_id = codec_id;
-		c->bit_rate = 400000;
-		/* Resolution must be a multiple of two. */
-		c->width    = 1366;//640;
-//		c->width    = 3840;//640;
-		c->height   = 768;//360;
-//		c->height   = 1080;//360;
+	avcodec_parameters_copy(ost->st->codecpar, cparams);
+	avcodec_parameters_to_context(ost->st->codec, cparams);
+	
+	switch (codec->type)
+	{
+		case AVMEDIA_TYPE_AUDIO:
+			ost->st->time_base = (AVRational){ 1, ost->st->codecpar->sample_rate };
+			
+			ost->st->codec->sample_fmt = codec->sample_fmts ?
+										 codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;;
+			
+			break;
+
+		case AVMEDIA_TYPE_VIDEO:
+			ost->st->time_base = (AVRational){ 1, STREAM_FRAME_RATE };
+
+			
 		/* timebase: This is the fundamental unit of time (in seconds) in terms
          * of which frame timestamps are represented. For fixed-fps content,
          * timebase should be 1/framerate and timestamp increments should be
          * identical to 1. */
-		ost->st->time_base	= (AVRational){ 1, STREAM_FRAME_RATE };
-		c->time_base		= ost->st->time_base;
-		c->gop_size			= 12; /* emit one intra frame every twelve frames at most */
-		c->pix_fmt			= STREAM_PIX_FMT;
 		
-		c->thread_count		= 4;
-		
-		if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-			/* just for testing, we also add B frames */
-			c->max_b_frames = 1;
-		}
-		if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-			/* Needed to avoid using macroblocks in which some coeffs overflow.
-             * This does not happen with normal video, it just happens here as
-             * the motion of the chroma plane does not match the luma plane. */
-			c->mb_decision = 2;
-		}
-	break;
-	default:
-		break;
+			ost->st->codec->gop_size		= 12; // emit one intra frame every twelve frames at most.
+			ost->st->codec->pix_fmt			= STREAM_PIX_FMT;
+			
+			ost->st->codec->thread_count		= 4;
+			
+			if (ost->st->codec->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+				/* just for testing, we also add B frames */
+				ost->st->codec->max_b_frames = 1;
+			}
+			if (ost->st->codec->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
+				/* Needed to avoid using macroblocks in which some coeffs overflow.
+				 * This does not happen with normal video, it just happens here as
+				 * the motion of the chroma plane does not match the luma plane. */
+				ost->st->codec->mb_decision = 2;
+			}
+
+			break;
+
+		default:
+			break;
 	}
+	
+	ost->st->codec->time_base = ost->st->time_base;
+
 	/* Some formats want stream headers to be separate. */
-	if (oc->oformat->flags & AVFMT_GLOBALHEADER)
-		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+//	if (oc->oformat->flags & AVFMT_GLOBALHEADER)
+//		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 }
 
 static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
@@ -380,7 +477,13 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 		av_init_packet(&pkt);
 
 		/* encode the image */
-//		ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+#ifdef FFVER_3_0
+		ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+		if (ret < 0) {
+			fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
+			exit(1);
+		}
+#else
 		ret = avcodec_send_frame(c, frame); // necessary to fix with ffmpeg 3.0
 		if (ret < 0) {
 			ERRPRINTF("Error sending frame for encoding: %s\n", av_err2str(ret));
@@ -403,7 +506,8 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 				av_packet_unref(&pkt);
 			}
 		}
-		
+#endif
+
 		if (got_packet) {
 			ret = write_frame(oc, &c->time_base, ost->st, &pkt);
 		} else {
@@ -424,23 +528,23 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 	av_frame_free(&ost->tmp_frame);
 }
 
-int main(int argc, char **argv)
+int api_enc(const char* filename,
+			AVCodec* video_codec,
+			AVCodecParameters* cparams,
+			AVDictionary *opt,
+			enum AVCodecID codec_id)
 {
-	const char  *filename	= "output.webm";
-	
 	OutputStream video_st = { 0 };
-	
+
 	AVOutputFormat	*fmt	= NULL;
 	AVFormatContext	*oc		= NULL;
-	AVCodec *video_codec = NULL;
-	
+
 	int ret = 0;
 	int have_video		= 0;
 	int encode_video	= 0;
-	AVDictionary *opt	= NULL;
-	
+
 	av_register_all();
-	
+
 	avformat_alloc_output_context2(&oc, NULL, NULL, filename);
 	if (!oc)
 	{
@@ -452,7 +556,7 @@ int main(int argc, char **argv)
 		ERRPRINTF("ffmpeg: Could not alloc output context");
 		goto err;
 	}
-	
+
 	fmt = oc->oformat;
 	if (!fmt)
 	{
@@ -465,56 +569,23 @@ int main(int argc, char **argv)
 		ERRPRINTF("Could not find suitable output format");
 		goto err;
 	}
-	
-	fmt->video_codec = MAIN_VIDEO_CODEC_ID;
-	
+
+	fmt->video_codec = codec_id;
+
 	if (fmt->video_codec != AV_CODEC_ID_NONE)
 	{
-		add_stream(&video_st, oc, &video_codec, fmt->video_codec);
+		add_stream(&video_st, oc, video_codec, cparams);
 		have_video		= 1;
 		encode_video	= 1;
 	}
-	
+
 	if (have_video)
-	{
-		switch(fmt->video_codec)
-		{
-			case AV_CODEC_ID_VP9:
-				set_dict_context(_vp9_context, &opt);
-				break;
-			case AV_CODEC_ID_VP8:
-				set_dict_context(_vp8_context, &opt);
-				break;
-			default:
-				ERRPRINTF("Wtf man");
-				break;
-		}
-
-
-#define JUST_FOR_TEST_VP9
-#ifdef JUST_FOR_TEST_VP9
-		dict_ccontext_t ctx = _vp9_context;
-		for (size_t p_id = 0; p_id < 14; p_id++)
-		{
-			AVDictionaryEntry* tempvar = NULL;
-			
-			if ((tempvar = av_dict_get(opt, ctx.param[p_id].key, NULL, 0)) == NULL)
-			{
-				ERRPRINTF("Can't find %s", ctx.param[p_id].key);
-			}
-			else
-			{
-				ERRPRINTF("%s -> %s", tempvar->key, tempvar->value);
-			}
-			
-		}
-#endif
-	
+	{	
 		open_video(oc, video_codec, &video_st, opt);
 	}
-	
+
 	av_dump_format(oc, 0, filename, 1);
-	
+
 	if (!(fmt->flags & AVFMT_NOFILE))
 	{
 		ret = avio_open(&oc->pb, filename, AVIO_FLAG_WRITE);
@@ -524,22 +595,22 @@ int main(int argc, char **argv)
 			goto err;
 		}
 	}
-	
+
 	ret = avformat_write_header(oc, &opt);
 	if (ret < 0)
 	{
 		ERRPRINTF("Error occurred when opening output file: %s", av_err2str(ret));
 		goto err;
 	}
-	
+
 	size_t frame_ind = 1;
-	
+
 	time_t start = time(NULL);
-	
+
 	framedata_t* bmp = NULL;
 	while (encode_video && !(load_frame(&bmp, "../../forbmp/image%05d.bmp", frame_ind++)))
 	{
-	
+
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		double time = 0;
 #endif
@@ -555,26 +626,60 @@ int main(int argc, char **argv)
 #endif
 		free(bmp);
 	}
-	
+
 	time_t finish = time(NULL);
 	ERRPRINTF("%lf sec for %zu frames", difftime(finish, start), frame_ind);
-	
+
 	av_write_trailer(oc);
-	
+
 	if (have_video)
 		close_stream(oc, &video_st);
-	
+
 	if (!(fmt->flags & AVFMT_NOFILE))
 	{
 		avio_closep(&oc->pb);
 	}
-	
+
 	avformat_free_context(oc);
-	
+
 	return 0;
-	
+
 err:
 	avformat_free_context(oc);
-	
+
 	return -1;
+}
+
+void destruct(AVCodecParameters *cparams)
+{
+	avcodec_parameters_free(&cparams);
+}
+
+int main(int argc, char **argv)
+{
+	const char *filename = "output.webm";
+
+	int codec_id = MAIN_VIDEO_CODEC_ID;
+
+	AVCodec* codec = NULL;
+	AVCodecParameters *cparams = NULL;
+	AVDictionary *opt = NULL;
+
+	int width  = 1366;
+	int height = 768;
+	
+	int ret = 0;
+
+	ret = init_codec(&cparams, &codec, &opt, codec_id, height, width);
+	if (ret < 0)
+	{
+		ERRPRINTF("Bad init codec");
+		return ret;
+	}
+
+	ret = api_enc(filename, codec, cparams, opt, MAIN_VIDEO_CODEC_ID);
+
+	destruct(cparams);
+
+	return ret;
 }
