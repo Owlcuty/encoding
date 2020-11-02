@@ -26,7 +26,7 @@
 #include <libavformat/avformat.h>
 
 
-#define STREAM_DURATION		60.0
+#define STREAM_DURATION		10.0
 #define STREAM_FRAME_RATE	10 /* 25 fps */
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 #define SCALE_FLAGS			0
@@ -128,7 +128,7 @@ typedef struct OutputStream {
 
 typedef struct EncoderParameters {
 	AVCodec				*codec;
-	AVCodecParameters 	*cparams; // neccessary ?
+	AVCodecContext 	*cparams; // neccessary ?
 	AVFormatContext		*oc;
 	AVDictionary		*opt;
 	AVOutputFormat		*fmt;
@@ -228,14 +228,13 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	AVDictionary *opt = NULL;
 	av_dict_copy(&opt, opt_arg, 0);
 	/* open the codec */
-ERRPRINTF("HERE!");
+//ERRPRINTF("HERE! Codec is `%s`", avcodec_get_name(c->codec_id));
 	ret = avcodec_open2(c, codec, &opt);
 	av_dict_free(&opt);
 	if (ret < 0) {
 		fprintf(stderr, "Could not open video codec: %s\n", av_err2str(ret));
 		exit(1);
 	}
-ERRPRINTF("HERE!");
 	/* allocate and init a re-usable frame */
 	ost->frame = alloc_picture(c->pix_fmt, c->width, c->height);
 	if (!ost->frame) {
@@ -285,7 +284,7 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp
 
 Enc_params_t *encoder_create(const char *filename,
 							 const char *codec_name,
-							 int height, int width)
+							 int width, int height)
 {
 	if (filename == NULL)
 	{
@@ -304,6 +303,10 @@ Enc_params_t *encoder_create(const char *filename,
 	int ret = 0;
 
 	Enc_params_t *params = (Enc_params_t*)calloc(1, sizeof(Enc_params_t));
+	if (params == NULL)
+	{
+		goto err;
+	}
 
 	/* find the encoder */
 	params->codec = avcodec_find_encoder_by_name(codec_name);
@@ -314,7 +317,8 @@ Enc_params_t *encoder_create(const char *filename,
 	}
 	ERRPRINTF("Found encoder '%s'", avcodec_get_name(params->codec->id));
 
-	params->cparams = avcodec_parameters_alloc();
+//	params->cparams = avcodec_parameters_alloc();
+	params->cparams = avcodec_alloc_context3(params->codec);
 //	*ctx = avcodec_alloc_context3(*codec);
 	if (!params->cparams)
 	{
@@ -337,7 +341,8 @@ Enc_params_t *encoder_create(const char *filename,
 		return NULL;
 	}
 
-	AVCodecParameters	*cp		= params->cparams;
+//	AVCodecParameters	*cp		= params->cparams;
+	AVCodecContext		*cp		= params->cparams;
 	AVCodec				*codec	= params->codec;
 //	AVFormatContext		*oc		= params->oc;
 
@@ -475,6 +480,8 @@ Enc_params_t *encoder_create(const char *filename,
 		ERRPRINTF("Error occurred when opening output file: %s", av_err2str(ret));
 		goto err;
 	}
+	
+	return params;
 
 err:
 	return NULL;
@@ -483,7 +490,7 @@ err:
 /* Add an output stream. */
 void add_stream(OutputStream *ost, AVFormatContext *oc,
 					   AVCodec *codec,
-					   const AVCodecParameters *cparams)
+					   const AVCodecContext *cparams)
 {
 	int ret = 0;
 
@@ -493,12 +500,13 @@ void add_stream(OutputStream *ost, AVFormatContext *oc,
 		exit(1);
 	}
 	ost->st->id = oc->nb_streams - 1;
-	avcodec_parameters_to_context(ost->st->codec, cparams);
+//	avcodec_parameters_to_context(ost->st->codec, cparams);
+	avcodec_copy_context(ost->st->codec, cparams);
 
 	switch (codec->type)
 	{
 		case AVMEDIA_TYPE_AUDIO:
-			ost->st->time_base = (AVRational){ 1, ost->st->codecpar->sample_rate };
+			ost->st->time_base = (AVRational){ 1, ost->st->codec->sample_rate };
 
 			ost->st->codec->sample_fmt = codec->sample_fmts ?
 										 codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;;
@@ -570,7 +578,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 	c = ost->st->codec;
 
 	frame = get_video_frame(ost, bmp);
-	
+
 	if (oc->oformat->flags & AVFMT_RAWPICTURE) {
 		/* a hack to avoid data copy with some raw video muxers */
 		AVPacket pkt;
@@ -724,7 +732,8 @@ err:
 
 void encoder_destruct(Enc_params_t* params)
 {
-	avcodec_parameters_free(&(params->cparams));
+//	avcodec_parameters_free(&(params->cparams));
+	avcodec_free_context(&(params->cparams));
 
 	free(params);
 }
