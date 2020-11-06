@@ -6,12 +6,14 @@
     </Plugin>
   </Plugins>
   <VirtualDirectory Name="includes">
+    <File Name="encoder.h"/>
     <File Name="vpxcontext.h"/>
     <File Name="bmp.h"/>
   </VirtualDirectory>
   <Description/>
   <Dependencies/>
   <VirtualDirectory Name="src">
+    <File Name="encoder.c"/>
     <File Name="bmp.c"/>
     <File Name="main.c"/>
   </VirtualDirectory>

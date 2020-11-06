@@ -4,7 +4,7 @@ lag-in-frames=16
 vprofile=0
 qmax=63
 qmin=0
-b=768k
+b=768l
 g=120
 
 maxrate=1.5M

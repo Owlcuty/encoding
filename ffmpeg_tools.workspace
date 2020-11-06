@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Workspace Name="ffmpeg_tools" Database="" Version="10.0.0">
-  <Project Name="tool" Path="tool/tool.project" Active="Yes"/>
   <BuildMatrix>
     <WorkspaceConfiguration Name="Debug" Selected="yes">
       <Environment/>
@@ -11,4 +10,5 @@
       <Project Name="tool" ConfigName="Release"/>
     </WorkspaceConfiguration>
   </BuildMatrix>
+  <Project Name="tool" Path="tool/tool.project" Active="Yes"/>
 </CodeLite_Workspace>
