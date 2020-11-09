@@ -1,3 +1,5 @@
+#define __STDC_WANT_LIB_EXT1__ 1
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -74,6 +76,12 @@ typedef struct OutputStream {
 	float t, tincr, tincr2;
 } OutputStream;
 
+/**
+ * @class EncoderParameters
+ * @date 09/11/20
+ * @file encoder.h
+ * @brief General encoder parameters struct
+ */
 typedef struct EncoderParameters {
 	AVCodec				*codec;
 	AVCodecParameters 	*cparams; // neccessary ?
@@ -87,115 +95,29 @@ typedef struct EncoderParameters {
 
 
 /**
- * @brief 
- * @param filename
- * @param opt
- */
-errno_t set_preset(const char* filename, AVDictionary** opt);
-
-/**
- * @brief 
- * @param data
- * @param filename
- * @param frame_ind
- */
-errno_t load_frame(framedata_t** data, const char *filename, size_t frame_ind);
-
-/**
- * @brief 
- * @param fmt_ctx
- * @param pkt
- */
-static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt);
-
-/**
- * @brief 
- * @param fmt_ctx
- * @param time_base
- * @param st
- * @param pkt
- */
-static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt);
-
-/**
- * @brief 
- * @param pix_fmt
- * @param width
- * @param height
- */
-static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height);
-
-/**
- * @brief 
- * @param oc
- * @param codec
- * @param ost
- * @param opt_arg
- */
-static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg);
-
-/**
- * @brief 
- * @param pict
- * @param width
- * @param height
- * @param bmp
- */
-static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp);
-
-/**
- * @brief 
- * @param ctx
- * @param opt
- */
-void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt);
-
-/**
- * @brief 
- * @param filename
- * @param codec_name
- * @param width
- * @param height
- * @param preset_filename
- * @return 
+ * @brief Allocate a new Enc_params_t and set its fields to default values.
+ * The returned struct must be freed with
+ * encoder_destruct().
+ * 
+ * @param filename name of output media file
+ * @param codec_name name of the requested encoder
+ * @param width of output media file
+ * @param height of output media file
+ * @param preset_filename name of user's file with custom params of codec
+ * Like:
+ * 
+ * `
+ * option1=value1
+ * option2=value2
+ * `
+ * May be NULL
+ * 
+ * @return special data with encoder parameters Enc_params_t
  */
 Enc_params_t *encoder_create(const char *filename,
 							 const char *codec_name,
 							 int width, int height,
 							 const char *preset_filename);
-
-/**
- * @brief 
- * @param ost
- * @param oc
- * @param codec
- * @param cparams
- */
-void add_stream(OutputStream *ost, AVFormatContext *oc,
-					   AVCodec *codec,
-					   const AVCodecParameters *cparams);
-
-/**
- * @brief 
- * @param ost
- * @param bmp
- */
-static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp);
-
-/**
- * @brief 
- * @param oc
- * @param ost
- * @param bmp
- */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t bmp);
-
-/**
- * @brief 
- * @param oc
- * @param ost
- */
-static void close_stream(AVFormatContext *oc, OutputStream *ost);
 
 /**
  * @brief 
@@ -211,13 +133,14 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost);
 errno_t encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_, int type);
 
 /**
- * @brief 
- * @param params
+ * @brief Write the stream trailer to an output media file, free the
+ * file private data and close stream
+ * @param params struct with codec parameters
  */
 errno_t encoder_write(Enc_params_t *params);
 
 /**
- * @brief 
- * @param params
+ * @brief free [[Enc_params_t]] struct with codec parameters
+ * @param params struct to freed
  */
 void encoder_destruct(Enc_params_t* params);
