@@ -11,17 +11,17 @@ int main(int argc, char **argv)
 	
 	int ret = 0;
 
-	Enc_params_t *params = encoder_create(filename, codec_name, width, height, "../../presets/vp9.sipreset");
+	EncoderParameters_p params = encoder_create(filename, codec_name, width, height, "../../presets/vp9.sipreset");
 	if (params == NULL)
 	{
-	    perror("encoder_create() fail: ");
-	    return errno;
+		perror("encoder_create() fail: ");
+		return errno;
 	}
 
 	framedata_t *bmp = NULL;
 	int frame_ind = 1;
-	
-	while (params->encode_video)
+
+	while (EP_get_encode_video(params))
 	{
 		ret = load_frame(&bmp, "../../forbmp/image%05d.bmp", frame_ind++);
 		if (ret < 0)

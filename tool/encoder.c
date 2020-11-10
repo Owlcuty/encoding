@@ -1,5 +1,58 @@
 #include "encoder.h"
 
+#include <libavcodec/avcodec.h>
+
+#include <libavutil/avassert.h>
+#include <libavutil/channel_layout.h>
+#include <libavutil/opt.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/timestamp.h>
+#include <libavutil/imgutils.h>
+
+#include <libswscale/swscale.h>
+
+#include <libavformat/avformat.h>
+
+
+typedef struct dict_codec_context
+{
+	const AVDictionaryEntry *param;
+	size_t cnt;
+} dict_ccontext_t;
+
+
+// a wrapper around a single output AVStream
+typedef struct OutputStream {
+	AVStream *st;
+	/* pts of the next frame that will be generated */
+	int64_t next_pts;
+	int samples_count;
+	AVFrame *frame;
+	AVFrame *tmp_frame;
+	float t, tincr, tincr2;
+} OutputStream;
+
+/**
+ * @class EncoderParameters
+ * @date 09/11/20
+ * @file encoder.h
+ * @brief General encoder parameters struct
+ */
+typedef struct EncoderParameters {
+	AVCodec				*codec;
+	AVCodecParameters 	*cparams; // neccessary ?
+	AVFormatContext		*oc;
+	AVDictionary		*opt;
+	AVOutputFormat		*fmt;
+	OutputStream		video_st;
+	int			encode_video;
+	int			have_video;
+} Enc_params_t;
+
+int EP_get_encode_video(Enc_params_t *params)
+{
+	return params->encode_video;
+}
 
 /* vp8 context -----------*/
 const AVDictionaryEntry _vp8_dict[4] = {
@@ -40,7 +93,7 @@ const dict_ccontext_t _vp9_context = {
 	14
 };
 
-errno_t set_preset(const char* filename, AVDictionary** opt)
+int set_preset(const char* filename, AVDictionary** opt)
 {
 	FILE* file_preset = NULL;
 	char *buf = NULL;
@@ -137,7 +190,7 @@ err:
 
 }
 
-errno_t load_frame(framedata_t** data, const char *filename, size_t frame_ind)
+int load_frame(framedata_t** data, const char *filename, size_t frame_ind)
 {
 	assert(filename);
 
@@ -248,7 +301,7 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	}
 }
 
-static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp) // void -> errno_t
+static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 {
 	struct SwsContext *sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24,
 												width, height, AV_PIX_FMT_YUV420P,
@@ -659,7 +712,7 @@ static void close_stream(AVFormatContext *oc, OutputStream *ost)
 	av_frame_free(&ost->tmp_frame);
 }
 
-errno_t encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_, int type)
+int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_, int type)
 {
 	if (params == NULL)
 	{
@@ -707,7 +760,7 @@ errno_t encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *da
 	//ERRPRINTF("%lf sec for %zu frames", difftime(finish, start), frame_ind);
 }
 
-errno_t encoder_write(Enc_params_t *params)
+int encoder_write(Enc_params_t *params)
 {
 	
 	av_write_trailer(params->oc);

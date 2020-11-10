@@ -1,5 +1,3 @@
-#define __STDC_WANT_LIB_EXT1__ 1
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -17,19 +15,6 @@
 
 
 #include <errno.h>
-
-#include <libavcodec/avcodec.h>
-
-#include <libavutil/avassert.h>
-#include <libavutil/channel_layout.h>
-#include <libavutil/opt.h>
-#include <libavutil/mathematics.h>
-#include <libavutil/timestamp.h>
-#include <libavutil/imgutils.h>
-
-#include <libswscale/swscale.h>
-
-#include <libavformat/avformat.h>
 
 
 #define STREAM_DURATION		60.0
@@ -55,47 +40,13 @@
 
 //#define FFVER_3_0
 
+// Private data. To get encode_video use EP_get_encode_video()
+typedef struct EncoderParameters *EncoderParameters_p;
 
-typedef struct dict_codec_context
-{
-	const AVDictionaryEntry *param;
-	size_t cnt;
-} dict_ccontext_t;
-
-
-typedef int errno_t;
-
-// a wrapper around a single output AVStream
-typedef struct OutputStream {
-	AVStream *st;
-	/* pts of the next frame that will be generated */
-	int64_t next_pts;
-	int samples_count;
-	AVFrame *frame;
-	AVFrame *tmp_frame;
-	float t, tincr, tincr2;
-} OutputStream;
+int EP_get_encode_video(EncoderParameters_p params);
 
 /**
- * @class EncoderParameters
- * @date 09/11/20
- * @file encoder.h
- * @brief General encoder parameters struct
- */
-typedef struct EncoderParameters {
-	AVCodec				*codec;
-	AVCodecParameters 	*cparams; // neccessary ?
-	AVFormatContext		*oc;
-	AVDictionary		*opt;
-	AVOutputFormat		*fmt;
-	OutputStream		video_st;
-	int			encode_video;
-	int			have_video;
-} Enc_params_t;
-
-
-/**
- * @brief Allocate a new Enc_params_t and set its fields to default values.
+ * @brief Allocate a new EncoderParameters_p and set its fields to default values.
  * The returned struct must be freed with
  * encoder_destruct().
  * 
@@ -112,12 +63,12 @@ typedef struct EncoderParameters {
  * `
  * May be NULL
  * 
- * @return special data with encoder parameters Enc_params_t
+ * @return special data with encoder parameters EncoderParameters_p
  */
-Enc_params_t *encoder_create(const char *filename,
-							 const char *codec_name,
-							 int width, int height,
-							 const char *preset_filename);
+EncoderParameters_p encoder_create(const char *filename,
+							const char *codec_name,
+							int width, int height,
+							const char *preset_filename);
 
 /**
  * @brief 
@@ -130,17 +81,17 @@ Enc_params_t *encoder_create(const char *filename,
  * 				1 is for `const char* format_frame_file_name`
  * @return zero on success, an errno on failure. Set errno on EIVAL or ENOMEM
  */
-errno_t encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_, int type);
+errno_t encoder_add_frame(EncoderParameters_p params, size_t frame_ind, const void *data_, int type);
 
 /**
  * @brief Write the stream trailer to an output media file, free the
  * file private data and close stream
  * @param params struct with codec parameters
  */
-errno_t encoder_write(Enc_params_t *params);
+errno_t encoder_write(EncoderParameters_p params);
 
 /**
- * @brief free [[Enc_params_t]] struct with codec parameters
+ * @brief free [[EncoderParameters_p]] struct with codec parameters
  * @param params struct to freed
  */
-void encoder_destruct(Enc_params_t* params);
+void encoder_destruct(EncoderParameters_p params);
