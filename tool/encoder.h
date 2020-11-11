@@ -46,6 +46,15 @@ typedef struct EncoderParameters *EncoderParameters_p;
 int EP_get_encode_video(EncoderParameters_p params);
 
 /**
+ * @brief allocate buffer to data and set rgb24 from bmp file to data
+ * @param data pointer to data array. Is changing, be careful
+ * @param filename format name of bmp file
+ * @param frame_ind num of frame
+ * @return zero on success, a negative AVERROR error code on failure.
+ */
+int load_frame(framedata_t **data, const char *filename, size_t frame_ind);
+
+/**
  * @brief Allocate a new EncoderParameters_p and set its fields to default values.
  * The returned struct must be freed with
  * encoder_destruct().
@@ -81,14 +90,15 @@ EncoderParameters_p encoder_create(const char *filename,
  * 				1 is for `const char* format_frame_file_name`
  * @return zero on success, an errno on failure. Set errno on EIVAL or ENOMEM
  */
-errno_t encoder_add_frame(EncoderParameters_p params, size_t frame_ind, const void *data_, int type);
+int encoder_add_frame(EncoderParameters_p params, size_t frame_ind, const void *data_, int type);
 
 /**
  * @brief Write the stream trailer to an output media file, free the
  * file private data and close stream
  * @param params struct with codec parameters
+ * @return 0 on success, an AVERROR < 0 on failure
  */
-errno_t encoder_write(EncoderParameters_p params);
+int encoder_write(EncoderParameters_p params);
 
 /**
  * @brief free [[EncoderParameters_p]] struct with codec parameters

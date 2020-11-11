@@ -14,13 +14,6 @@
 #include <libavformat/avformat.h>
 
 
-typedef struct dict_codec_context
-{
-	const AVDictionaryEntry *param;
-	size_t cnt;
-} dict_ccontext_t;
-
-
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
 	AVStream *st;
@@ -54,20 +47,38 @@ int EP_get_encode_video(Enc_params_t *params)
 	return params->encode_video;
 }
 
+
+typedef struct dict_codec_context
+{
+	const AVDictionaryEntry *param;
+	size_t cnt;
+} dict_ccontext_t;
+
 /* vp8 context -----------*/
 const AVDictionaryEntry _vp8_dict[4] = {
-	{"arnr-maxframes", "15"},
 	{"deadline", "realtime"},
 	{"cpu-used", "16"},
-	{"crf", "4"}
+	{"lag-in-frames", "16"},
+	{"vprofile", "0"},
+	{"qmax", "63"},
+	{"qmin", "0"},
+	{"b", "768k"},
+	{"g", "120"},
+
+	{"maxrate", "1.5M"},
+	{"minrate", "40k"},
+	{"auto-alt-ref", "1"},
+	{"arnr-maxframes", "7"},
+	{"arnr-strength", "5"},
+	{"arnr-type", "centered"}
 };
 
 const dict_ccontext_t _vp8_context = {
 	_vp8_dict,
-	4
+	14
 };
-//--------------------------
 
+//--------------------------
 
 /* vp9 context -----------*/
 const AVDictionaryEntry _vp9_dict[] = {
@@ -92,6 +103,7 @@ const dict_ccontext_t _vp9_context = {
 	_vp9_dict,
 	14
 };
+
 
 int set_preset(const char* filename, AVDictionary** opt)
 {
@@ -192,7 +204,11 @@ err:
 
 int load_frame(framedata_t** data, const char *filename, size_t frame_ind)
 {
-	assert(filename);
+	if (filename == NULL)
+	{
+		errno = EINVAL;
+		return AVERROR(errno);
+	}
 
 	int width  = 0;
 	int height = 0;
@@ -252,26 +268,34 @@ static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AV
 
 static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 {
-	AVFrame *picture;
-	int ret;
+	AVFrame *picture = NULL;
 	picture = av_frame_alloc();
-	if (!picture)
+
+	if (picture == NULL)
+	{
+		errno = ENOMEM;
 		return NULL;
+	}
+
 	picture->format = pix_fmt;
 	picture->width  = width;
 	picture->height = height;
+	
+	int ret = 0;
 	/* allocate the buffers for the frame data */
 	ret = av_frame_get_buffer(picture, 32);
-	if (ret < 0) {
+	if (ret < 0)
+	{
+		errno = ret;
 		ERRPRINTF("Could not allocate frame data.");
 		return NULL;
 	}
 	return picture;
 }
 
-static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
+static int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
 {
-	int ret;
+	int ret = 0;
 	AVCodecContext *c = ost->st->codec;
 	AVDictionary *opt = NULL;
 	av_dict_copy(&opt, opt_arg, 0);
@@ -279,29 +303,36 @@ static void open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, A
 	ret = avcodec_open2(c, codec, &opt);
 	av_dict_free(&opt);
 	if (ret < 0) {
-		fprintf(stderr, "Could not open video codec: %s\n", av_err2str(ret));
-		exit(1);
+		ERRPRINTF("Could not open video codec: %s", av_err2str(ret));
+		return ret;
 	}
+
 	/* allocate and init a re-usable frame */
 	ost->frame = alloc_picture(c->pix_fmt, c->width, c->height);
-	if (!ost->frame) {
-		fprintf(stderr, "Could not allocate video frame\n");
-		exit(1);
+	if (!ost->frame)
+	{
+		ERRPRINTF("Could not allocate video frame");
+		return AVERROR(errno);
 	}
+
 	/* If the output format is not YUV420P, then a temporary YUV420P
 	* picture is needed too. It is then converted to the required
 	* output format. */
 	ost->tmp_frame = NULL;
-	if (c->pix_fmt != AV_PIX_FMT_YUV420P) {
+	if (c->pix_fmt != AV_PIX_FMT_YUV420P)
+	{
 		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
-		if (!ost->tmp_frame) {
-			fprintf(stderr, "Could not allocate temporary picture\n");
-			exit(1);
+		if (!ost->tmp_frame)
+		{
+			ERRPRINTF("Could not allocate temporary picture");
+			return AVERROR(errno);
 		}
 	}
+
+	return 0;
 }
 
-static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
+static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 {
 	struct SwsContext *sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24,
 												width, height, AV_PIX_FMT_YUV420P,
@@ -309,23 +340,27 @@ static void fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp
 	if (!sws_ctx)
 	{
 		ERRPRINTF("Bad sws_getContext");
+		errno = ENOMEM;
+		return AVERROR(errno);
 	}
 
 	AVFrame* frame1 = alloc_picture(AV_PIX_FMT_RGB24, width, height);
-//	avpicture_fill((AVPicture*)frame1, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height);
 	av_image_fill_arrays(frame1->data, frame1->linesize, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height, 1);
 
 	int ret = av_image_alloc(pict->data, pict->linesize, pict->width, pict->height, AV_PIX_FMT_YUV420P, 32);
 	if (ret < 0)
 	{
 		ERRPRINTF("Could not allocate raw picture buffer");
-		exit(1);
+		errno = ENOMEM;
+		return AVERROR(errno);
 	}
 
 	sws_scale(sws_ctx, (const uint8_t * const *)frame1->data, frame1->linesize, 0,
 				height, pict->data, pict->linesize);
 
 	av_frame_free(&frame1);
+
+	return 0;
 }
 
 void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt)
@@ -343,13 +378,13 @@ Enc_params_t *encoder_create(const char *filename,
 {
 	if (filename == NULL)
 	{
-		errno = AVERROR(EINVAL);
+		errno = EINVAL;
 		return NULL;
 	}
 
 	if (codec_name == NULL)
 	{
-		errno = AVERROR(EINVAL);
+		errno = EINVAL;
 		return NULL;
 	}
 
@@ -380,14 +415,14 @@ Enc_params_t *encoder_create(const char *filename,
 	avformat_alloc_output_context2(&(params->oc), NULL, NULL, filename);
 	if (params->oc == NULL)
 	{
-		errno = AVERROR(ENOMEM);
+		errno = ENOMEM;
 		return NULL;
 		ERRPRINTF("ffmpeg: Could not deduce output format file extension: using MPEG.\n");
 		avformat_alloc_output_context2(&(params->oc), NULL, "webm", filename);
 	}
 	if (params->oc == NULL)
 	{
-		errno = AVERROR(ENOMEM);
+		errno = ENOMEM;
 		ERRPRINTF("ffmpeg: Could not alloc output context");
 		return NULL;
 	}
@@ -440,7 +475,7 @@ Enc_params_t *encoder_create(const char *filename,
 	ret = av_dict_copy(&(params->opt), NULL, 0);
 	if (ret < 0)
 	{
-		errno = AVERROR(ENOMEM);
+		errno = ENOMEM;
 		ERRPRINTF("Bad alloc dict");
 		return NULL;
 	}
@@ -517,14 +552,22 @@ Enc_params_t *encoder_create(const char *filename,
 
 	if (params->fmt->video_codec != AV_CODEC_ID_NONE)
 	{
-		add_stream(&(params->video_st), params->oc, params->codec, params->cparams);
+		ret = add_stream(&(params->video_st), params->oc, params->codec, params->cparams);
+		if (ret < 0)
+		{
+			return ret;
+		}
 		params->have_video = 1;
 		params->encode_video = 1;
 	}
 
 	if (params->have_video)
 	{
-		open_video(params->oc, params->codec, &(params->video_st), params->opt);
+		ret = open_video(params->oc, params->codec, &(params->video_st), params->opt);
+		if (ret < 0)
+		{
+			goto err;
+		}
 	}
 
 	av_dump_format(params->oc, 0, filename, 1);
@@ -553,19 +596,23 @@ err:
 }
 
 /* Add an output stream. */
-void add_stream(OutputStream *ost, AVFormatContext *oc,
-					   AVCodec *codec,
-					   const AVCodecParameters *cparams)
+int add_stream(OutputStream *ost, AVFormatContext *oc,
+					AVCodec *codec,
+					const AVCodecParameters *cparams)
 {
 	int ret = 0;
 
 	ost->st = avformat_new_stream(oc, codec);
-	if (!ost->st) {
-		fprintf(stderr, "Could not allocate stream\n");
-		exit(1);
+	if (ost->st == NULL) {
+		ERRPRINTF("Could not allocate stream");
+		return AVERROR(errno);
 	}
 	ost->st->id = oc->nb_streams - 1;
-	avcodec_parameters_to_context(ost->st->codec, cparams);
+	ret = avcodec_parameters_to_context(ost->st->codec, cparams);
+	if (ret < 0)
+	{
+		return ret;
+	}
 
 	switch (codec->type)
 	{
@@ -607,12 +654,10 @@ void add_stream(OutputStream *ost, AVFormatContext *oc,
 		default:
 			break;
 	}
-	
+
 	ost->st->codec->time_base = ost->st->time_base;
 
-	/* Some formats want stream headers to be separate. */
-//	if (oc->oformat->flags & AVFMT_GLOBALHEADER)
-//		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+	return 0;
 }
 
 static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
@@ -624,7 +669,12 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
 					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
 #endif
-	fill_yuv_image(ost->frame, c->width, c->height, bmp);
+	int ret = 0;
+	ret = fill_yuv_image(ost->frame, c->width, c->height, bmp);
+	if (ret < 0)
+	{
+		return NULL;
+	}
 	ost->frame->pts = ost->next_pts++;
 	return ost->frame;
 }
@@ -635,15 +685,20 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
  */
 static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t bmp)
 {
-	int ret;
-	AVCodecContext *c;
-	AVFrame *frame;
+	int ret = 0;
+	AVCodecContext *c = NULL;
+	AVFrame *frame = NULL;
 	int got_packet = 0;
 	c = ost->st->codec;
 
 	frame = get_video_frame(ost, bmp);
+	if (frame == NULL)
+	{
+		return AVERROR(errno);
+	}
 	
-	if (oc->oformat->flags & AVFMT_RAWPICTURE) {
+	if (oc->oformat->flags & AVFMT_RAWPICTURE)
+	{
 		/* a hack to avoid data copy with some raw video muxers */
 		AVPacket pkt;
 		av_init_packet(&pkt);
@@ -656,22 +711,26 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 		pkt.pts = pkt.dts = frame->pts;
 		av_packet_rescale_ts(&pkt, c->time_base, ost->st->time_base);
 		ret = av_interleaved_write_frame(oc, &pkt);
-	} else {
+	}
+	else
+	{
 		AVPacket pkt = { 0 };
 		av_init_packet(&pkt);
 
 		/* encode the image */
 #ifdef FFVER_3_0
 		ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
-		if (ret < 0) {
-			fprintf(stderr, "Error encoding video frame: %s\n", av_err2str(ret));
-			exit(1);
+		if (ret < 0)
+		{
+			ERRPRINTF("Error encoding video frame: %s", av_err2str(ret));
+			return ret;
 		}
 #else
 		ret = avcodec_send_frame(c, frame); // necessary to fix with ffmpeg 3.0
-		if (ret < 0) {
-			ERRPRINTF("Error sending frame for encoding: %s\n", av_err2str(ret));
-			exit(1);
+		if (ret < 0)
+		{
+			ERRPRINTF("Error sending frame for encoding: %s", av_err2str(ret));
+			return ret;
 		}
 		while (ret >= 0)
 		{
@@ -683,7 +742,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 			else if (ret < 0)
 			{
 				ERRPRINTF("Error during encoding (receive frame)");
-				exit(1);
+				return ret;
 			}
 			else
 			{
@@ -692,15 +751,19 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 		}
 #endif
 
-		if (got_packet) {
+		if (got_packet)
+		{
 			ret = write_frame(oc, &c->time_base, ost->st, &pkt);
-		} else {
+		}
+		else
+		{
 			ret = 0;
 		}
 	}
-	if (ret < 0) {
-		fprintf(stderr, "Error while writing video frame: %s\n", av_err2str(ret));
-		exit(1);
+	if (ret < 0)
+	{
+		ERRPRINTF("Error while writing video frame: %s", av_err2str(ret));
+		return ret;
 	}
 	return (frame || got_packet) ? 0 : 1;
 }
@@ -716,8 +779,8 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 {
 	if (params == NULL)
 	{
-		errno = AVERROR(EINVAL);
-		return errno;
+		errno = EINVAL;
+		return AVERROR(errno);
 	}
 
 	framedata_t *data = NULL;
@@ -735,8 +798,8 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 			}
 			break;
 		default:
-			errno = AVERROR(EINVAL);
-			return errno;
+			errno = EINVAL;
+			return AVERROR(errno);
 			break;
 	}
 
@@ -744,6 +807,10 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 		double time = 0;
 #endif
 		params->encode_video = (int)(write_video_frame(params->oc, &(params->video_st), data) == 0);
+		if (params->encode_video < 0)
+		{
+			return params->encode_video;
+		}
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		time++;
 		if ((int)time % 10 == 0)
@@ -762,25 +829,36 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 
 int encoder_write(Enc_params_t *params)
 {
-	
-	av_write_trailer(params->oc);
+	int ret = 0;
+
+	ret = av_write_trailer(params->oc);
+	if (ret != 0)
+	{
+		goto err;
+	}
 
 	if (params->have_video)
+	{
 		close_stream(params->oc, &(params->video_st));
+	}
 
 	if (!(params->fmt->flags & AVFMT_NOFILE))
 	{
-		avio_closep(&(params->oc->pb));
+		ret = avio_closep(&(params->oc->pb));
+		if (ret != 0)
+		{
+			goto err;
+		}
 	}
 
 	avformat_free_context(params->oc);
 
-	return 0;
+	return ret;
 
 err:
 	avformat_free_context(params->oc);
 
-	return -1;
+	return ret;
 }
 
 void encoder_destruct(Enc_params_t* params)

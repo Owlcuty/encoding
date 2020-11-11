@@ -35,17 +35,18 @@ int main(int argc, char **argv)
 		{
 			return -1;
 		}
+
+		free(bmp);
 	}
 
 	ret = encoder_write(params);
 	if (ret < 0)
 	{
+		encoder_destruct(params);
 		return -1;
 	}
 	
 	encoder_destruct(params);
-
-//	ret = api_enc(filename, codec, cparams, opt, MAIN_VIDEO_CODEC_ID);
 
 	return ret;
 }
