@@ -72,7 +72,7 @@ int load_frame(framedata_t **data, const char *filename, size_t frame_ind);
  * `
  * May be NULL
  * 
- * @return special data with encoder parameters EncoderParameters_p
+ * @return special data with encoder parameters EncoderParameters_p. Can set errno on EINVAL
  */
 EncoderParameters_p encoder_create(const char *filename,
 							const char *codec_name,
@@ -96,7 +96,7 @@ int encoder_add_frame(EncoderParameters_p params, size_t frame_ind, const void *
  * @brief Write the stream trailer to an output media file, free the
  * file private data and close stream
  * @param params struct with codec parameters
- * @return 0 on success, an AVERROR < 0 on failure
+ * @return 0 on success, an AVERROR < 0 on failure. Can set errno on EINVAL
  */
 int encoder_write(EncoderParameters_p params);
 

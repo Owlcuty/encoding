@@ -400,16 +400,18 @@ Enc_params_t *encoder_create(const char *filename,
 	params->codec = avcodec_find_encoder_by_name(codec_name);
 	if (params->codec == NULL)
 	{
+		errno = EINVAL;
 		ERRPRINTF("Could not find encoder for '%s'", codec_name);
-		return -1;
+		return NULL;
 	}
 
 	params->cparams = avcodec_parameters_alloc();
 //	*ctx = avcodec_alloc_context3(*codec);
 	if (!params->cparams)
 	{
+		errno = ENOMEM;
 		ERRPRINTF("Could not allocate codec parameters");
-		return -1;
+		return NULL;
 	}
 
 	avformat_alloc_output_context2(&(params->oc), NULL, NULL, filename);
@@ -829,10 +831,16 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 
 int encoder_write(Enc_params_t *params)
 {
+	if (params == NULL)
+	{
+		errno = EINVAL;
+		return AVERROR(errno);
+	}
+
 	int ret = 0;
 
 	ret = av_write_trailer(params->oc);
-	if (ret != 0)
+	if (ret < 0)
 	{
 		goto err;
 	}
@@ -845,7 +853,7 @@ int encoder_write(Enc_params_t *params)
 	if (!(params->fmt->flags & AVFMT_NOFILE))
 	{
 		ret = avio_closep(&(params->oc->pb));
-		if (ret != 0)
+		if (ret < 0)
 		{
 			goto err;
 		}
