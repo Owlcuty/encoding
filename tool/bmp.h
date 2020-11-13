@@ -89,3 +89,11 @@ typedef BYTE* framedata_t;
 //unsigned char bitextract(const DWORD byte, const DWORD mask);
 //int get_padding(DWORD width, WORD bitCount);
 framedata_t load_bmp(const char* filename, int *width, int *height);
+/**
+ * @brief allocate buffer to data and set rgb24 from bmp file to data
+ * @param data pointer to data array. Is changing, be careful
+ * @param filename format name of bmp file
+ * @param frame_ind num of frame
+ * @return zero on success, an errno code on failure.
+ */
+int load_frame(framedata_t **data, const char *filename, size_t frame_ind);

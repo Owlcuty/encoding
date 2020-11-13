@@ -51,15 +51,6 @@ typedef struct EncoderParameters *EncoderParameters_p;
 int EP_get_encode_video(EncoderParameters_p params);
 
 /**
- * @brief allocate buffer to data and set rgb24 from bmp file to data
- * @param data pointer to data array. Is changing, be careful
- * @param filename format name of bmp file
- * @param frame_ind num of frame
- * @return zero on success, a negative AVERROR error code on failure.
- */
-int load_frame(framedata_t **data, const char *filename, size_t frame_ind);
-
-/**
  * @brief Allocate a new EncoderParameters_p and set its fields to default values.
  * The returned struct must be freed with
  * encoder_destruct().
