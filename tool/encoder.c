@@ -202,44 +202,6 @@ err:
 
 }
 
-int load_frame(framedata_t** data, const char *filename, size_t frame_ind)
-{
-	if (filename == NULL)
-	{
-		errno = EINVAL;
-		return AVERROR(errno);
-	}
-
-	int width  = 0;
-	int height = 0;
-
-	char *cur_filename = (char*)calloc(strlen(filename) + 1, sizeof(*cur_filename));
-
-	if (cur_filename == NULL)
-	{
-		goto err;
-	}
-
-	sprintf(cur_filename, filename, frame_ind);
-
-	*data = load_bmp((const char*)cur_filename, &width, &height);
-	if (!(*data))
-	{
-		ERRPRINTF("Bad loading bmp\n");
-		goto err;
-	}
-
-	free(cur_filename);
-
-	return 0;
-
-err:
-	free(cur_filename);
-	free(*data);
-
-	return AVERROR(errno);
-}
-
 AVFrame *picture, *tmp_picture;
 uint8_t *video_outbuf;
 int video_outbuf_size;

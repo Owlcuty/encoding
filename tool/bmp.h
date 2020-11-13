@@ -26,6 +26,12 @@
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 
+#ifdef BMP_DEBUG_SESSION
+#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
+#else
+#define ERRPRINTF(format, ...) 
+#endif
+
 
 typedef int		 errno_t;
 typedef int*	pict_t;

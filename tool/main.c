@@ -1,5 +1,7 @@
 #include "encoder.h"
 
+#include "bmp.h"
+
 
 int main(int argc, char **argv)
 {
