@@ -13,6 +13,8 @@
 
 #include <libavformat/avformat.h>
 
+const int EP_CODEC_ID_VP8_ = AV_CODEC_ID_VP8;
+const int EP_CODEC_ID_VP9_ = AV_CODEC_ID_VP9;
 
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
@@ -334,7 +336,7 @@ void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt)
 }
 
 Enc_params_t *encoder_create(const char *filename,
-							 const char *codec_name,
+							 const int ep_codec_id,
 							 int width, int height,
 							 const char *preset_filename)
 {
@@ -344,10 +346,24 @@ Enc_params_t *encoder_create(const char *filename,
 		return NULL;
 	}
 
-	if (codec_name == NULL)
+	if (ep_codec_id == 0)
 	{
 		errno = EINVAL;
 		return NULL;
+	}
+	enum AVCodecID codec_id = 0;
+	switch (ep_codec_id)
+	{
+		case EP_CODEC_ID_VP8:
+			codec_id = AV_CODEC_ID_VP8;
+			break;
+		case EP_CODEC_ID_VP9:
+			codec_id = AV_CODEC_ID_VP9;
+			break;
+		default:
+			ERRPRINTF("Not available codec id");
+			errno = EINVAL;
+			return NULL;
 	}
 
 	int ret = 0;
@@ -359,11 +375,12 @@ Enc_params_t *encoder_create(const char *filename,
 	}
 
 	/* find the encoder */
-	params->codec = avcodec_find_encoder_by_name(codec_name);
+	params->codec = avcodec_find_encoder(codec_id);
 	if (params->codec == NULL)
 	{
 		errno = EINVAL;
-		ERRPRINTF("Could not find encoder for '%s'", codec_name);
+//		ERRPRINTF("Could not find encoder for '%s'", codec_name);
+		ERRPRINTF("Could not find encoder for '%s'", avcodec_get_name(codec_id));
 		return NULL;
 	}
 

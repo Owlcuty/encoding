@@ -41,6 +41,12 @@
 #define ERRPRINTF(format, ...) 
 #endif
 
+enum EP_codec_id
+{
+	EP_CODEC_ID_VP8,
+	EP_CODEC_ID_VP9
+};
+
 //#define FFVER_3_0
 
 typedef uint8_t *framedata_t;
@@ -56,7 +62,8 @@ int EP_get_encode_video(EncoderParameters_p params);
  * encoder_destruct().
  * 
  * @param filename name of output media file
- * @param codec_name name of the requested encoder
+ * //@param codec_name name of the requested encoder
+ * @param codec_id 
  * @param width of output media file
  * @param height of output media file
  * @param preset_filename name of user's file with custom params of codec
@@ -71,7 +78,8 @@ int EP_get_encode_video(EncoderParameters_p params);
  * @return special data with encoder parameters EncoderParameters_p. Can set errno on EINVAL
  */
 EncoderParameters_p encoder_create(const char *filename,
-							const char *codec_name,
+//							const char *codec_name,
+							const int codec_id,
 							int width, int height,
 							const char *preset_filename);
 

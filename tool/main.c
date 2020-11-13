@@ -8,12 +8,14 @@ int main(int argc, char **argv)
 	const char *filename = "output.webm";
 	const char *codec_name = "libvpx-vp9";
 
+	const int codec_id = EP_CODEC_ID_VP9;
+
 	int width  = 1366;
 	int height = 768;
-	
+
 	int ret = 0;
 
-	EncoderParameters_p params = encoder_create(filename, codec_name, width, height, "../../presets/vp9.sipreset");
+	EncoderParameters_p params = encoder_create(filename, codec_id, width, height, "../../presets/vp9.sipreset");
 	if (params == NULL)
 	{
 		perror("encoder_create() fail: ");
