@@ -336,7 +336,7 @@ void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt)
 }
 
 Enc_params_t *encoder_create(const char *filename,
-							 const int ep_codec_id,
+							 enum EPCodecId ep_codec_id,
 							 int width, int height,
 							 const char *preset_filename)
 {
@@ -351,6 +351,7 @@ Enc_params_t *encoder_create(const char *filename,
 		errno = EINVAL;
 		return NULL;
 	}
+
 	enum AVCodecID codec_id = 0;
 	switch (ep_codec_id)
 	{

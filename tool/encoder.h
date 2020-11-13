@@ -41,7 +41,7 @@
 #define ERRPRINTF(format, ...) 
 #endif
 
-enum EP_codec_id
+enum EPCodecId
 {
 	EP_CODEC_ID_VP8,
 	EP_CODEC_ID_VP9
@@ -79,7 +79,7 @@ int EP_get_encode_video(EncoderParameters_p params);
  */
 EncoderParameters_p encoder_create(const char *filename,
 //							const char *codec_name,
-							const int codec_id,
+							enum EPCodecId codec_id,
 							int width, int height,
 							const char *preset_filename);
 
