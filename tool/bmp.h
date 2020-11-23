@@ -26,12 +26,12 @@
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 
-#ifndef ERRPRINTF
-	#ifdef BMP_DEBUG_SESSION
-		#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
-	#else
-		#define ERRPRINTF(format, ...)
-	#endif
+#ifndef ERRPRINTF_BMP
+#ifdef BMP_DEBUG_SESSION
+	#define ERRPRINTF_BMP(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
+#else
+	#define ERRPRINTF_BMP(format, ...)
+#endif
 #endif
 
 

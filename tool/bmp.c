@@ -99,7 +99,7 @@ framedata_t load_bmp(const char* filename,
 	FILE *file = fopen(filename, "rb");
 	if (!file)
 	{
-		ERRPRINTF("Could not open file %s", filename);
+		ERRPRINTF_BMP("Could not open file %s", filename);
 		return NULL;
 	}
 
@@ -108,7 +108,7 @@ framedata_t load_bmp(const char* filename,
 	size_t res = fread(&bmph, 1, sizeof(bitmapfileheader_t), file);
 	if (res != sizeof(bitmapfileheader_t))
 	{
-		ERRPRINTF("Bad reading file %s", filename);
+		ERRPRINTF_BMP("Bad reading file %s", filename);
 		goto err;
 	}
 
@@ -118,7 +118,7 @@ framedata_t load_bmp(const char* filename,
 
 	if (bmph.bfType != 0x4D42)
 	{
-		ERRPRINTF("Bad signature [[ %s.bfType ]] {%X}", ARG_NAME(bmph), bmph.bfType);
+		ERRPRINTF_BMP("Bad signature [[ %s.bfType ]] {%X}", ARG_NAME(bmph), bmph.bfType);
 		goto err;
 	}
 
@@ -129,7 +129,7 @@ framedata_t load_bmp(const char* filename,
 #endif
 	if (filesize == -1)
 	{
-		ERRPRINTF("Bad read size of %s", filename);
+		ERRPRINTF_BMP("Bad read size of %s", filename);
 		goto err;
 	}
 
@@ -142,7 +142,7 @@ framedata_t load_bmp(const char* filename,
 
 	if (fread(buffer, 1, filesize, file) < filesize - sizeof(bitmapfileheader_t))
 	{
-		ERRPRINTF("Bad here :: %s", __PRETTY_FUNCTION__);
+		ERRPRINTF_BMP("Bad here :: %s", __PRETTY_FUNCTION__);
 		goto err;
 	}
 
@@ -182,7 +182,7 @@ framedata_t load_bmp(const char* filename,
 	}
 	else
 	{
-		ERRPRINTF("Bad bitmap core");
+		ERRPRINTF_BMP("Bad bitmap core");
 		goto err;
 	}
 
@@ -253,17 +253,17 @@ framedata_t load_bmp(const char* filename,
 
 	if (bmpinfo.biSize != 12 && bmpinfo.biSize != 40 && bmpinfo.biSize != 52 &&
 		bmpinfo.biSize != 56 && bmpinfo.biSize != 108) {
-		ERRPRINTF("Error: Unsupported BMP format.");
+		ERRPRINTF_BMP("Error: Unsupported BMP format.");
 		goto err;
 	}
 
 	if (bmpinfo.biBitCount != 16 && bmpinfo.biBitCount != 24 && bmpinfo.biBitCount != 32) {
-		ERRPRINTF("Error: Unsupported BMP bit count.");
+		ERRPRINTF_BMP("Error: Unsupported BMP bit count.");
 		goto err;
 	}
 
 	if (bmpinfo.biCompression != 0 && bmpinfo.biCompression != 3) {
-		ERRPRINTF("Error: Unsupported BMP compression.");
+		ERRPRINTF_BMP("Error: Unsupported BMP compression.");
 		goto err;
 	}
 
@@ -274,7 +274,7 @@ framedata_t load_bmp(const char* filename,
 		bmpinfo.biCompression	!= 0
 		)
 	{
-		ERRPRINTF("Bad data");
+		ERRPRINTF_BMP("Bad data");
 		goto err;
 	}
 
@@ -371,7 +371,7 @@ int load_frame(framedata_t* data, const char *filename, size_t frame_ind)
 	*data = load_bmp((const char*)cur_filename, &width, &height);
 	if (!(*data))
 	{
-		ERRPRINTF("Bad loading bmp\n");
+		ERRPRINTF_BMP("Bad loading bmp\n");
 		goto err;
 	}
 

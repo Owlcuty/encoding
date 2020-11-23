@@ -58,8 +58,9 @@ typedef struct OutputStream {
  * @brief General encoder parameters struct
  */
 typedef struct EncoderParameters {
-	AVCodec				*codec;
-	AVCodecParameters 	*cparams; // neccessary ?
+	AVCodec			*codec;
+	AVCodecParameters 	*cparams;
+	AVCodecContext		*ctx;
 	AVFormatContext		*oc;
 	AVDictionary		*opt;
 	AVOutputFormat		*fmt;
@@ -179,14 +180,15 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 	return picture;
 }
 
-static int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AVDictionary *opt_arg)
+static int open_video(Enc_params_t *params)
 {
 	int ret = 0;
-	AVCodecContext *c = ost->st->codec;
+	AVCodecContext *c = params->ctx;
+	OutputStream *ost = &(params->video_st);
 	AVDictionary *opt = NULL;
-	av_dict_copy(&opt, opt_arg, 0);
+	av_dict_copy(&opt, params->opt, 0);
 	/* open the codec */
-	ret = avcodec_open2(c, codec, &opt);
+	ret = avcodec_open2(c, params->codec, &opt);
 	av_dict_free(&opt);
 	if (ret < 0) {
 		ERRPRINTF("Could not open video codec: %s", av_err2str(ret));
@@ -266,31 +268,30 @@ void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt)
 }
 
 /* Add an output stream. */
-int add_stream(OutputStream *ost, AVFormatContext *oc,
-					AVCodec *codec,
-					const AVCodecParameters *cparams)
+int add_stream(Enc_params_t *params)
 {
 	int ret = 0;
 
-	ost->st = avformat_new_stream(oc, codec);
+	OutputStream *ost = &(params->video_st);
+	ost->st = avformat_new_stream(params->oc, params->codec);
 	if (ost->st == NULL) {
 		ERRPRINTF("Could not allocate stream");
 		return AVERROR(errno);
 	}
-	ost->st->id = oc->nb_streams - 1;
-	ret = avcodec_parameters_to_context(ost->st->codec, cparams);
+	ost->st->id = params->oc->nb_streams - 1;
+	ret = avcodec_parameters_to_context(params->ctx, params->cparams);
 	if (ret < 0)
 	{
 		return ret;
 	}
 
-	switch (codec->type)
+	switch (params->codec->type)
 	{
 		case AVMEDIA_TYPE_AUDIO:
 			ost->st->time_base = (AVRational){ 1, ost->st->codecpar->sample_rate };
 
-			ost->st->codec->sample_fmt = codec->sample_fmts ?
-										 codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;;
+			params->ctx->sample_fmt = params->codec->sample_fmts ?
+										 params->codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;;
 
 			break;
 
@@ -303,20 +304,20 @@ int add_stream(OutputStream *ost, AVFormatContext *oc,
          * timebase should be 1/framerate and timestamp increments should be
          * identical to 1. */
 
-			ost->st->codec->gop_size		= 12; // emit one intra frame every twelve frames at most.
-			ost->st->codec->pix_fmt			= STREAM_PIX_FMT;
+			params->ctx->gop_size		= 12; // emit one intra frame every twelve frames at most.
+			params->ctx->pix_fmt			= STREAM_PIX_FMT;
 
-			ost->st->codec->thread_count	= 4;
+			params->ctx->thread_count	= 4;
 
-			if (ost->st->codec->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+			if (params->ctx->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
 				/* just for testing, we also add B frames */
-				ost->st->codec->max_b_frames = 1;
+				params->ctx->max_b_frames = 1;
 			}
-			if (ost->st->codec->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
+			if (params->ctx->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
 				/* Needed to avoid using macroblocks in which some coeffs overflow.
 				 * This does not happen with normal video, it just happens here as
 				 * the motion of the chroma plane does not match the luma plane. */
-				ost->st->codec->mb_decision = 2;
+				params->ctx->mb_decision = 2;
 			}
 
 			break;
@@ -325,24 +326,26 @@ int add_stream(OutputStream *ost, AVFormatContext *oc,
 			break;
 	}
 
-	ost->st->codec->time_base = ost->st->time_base;
+	params->ctx->time_base = ost->st->time_base;
 
 	return 0;
 }
 
 Enc_params_t *encoder_create(const char *filename,
-							 enum EPCodecId ep_codec_id,
-							 int width, int height)
+			     enum EPCodecId ep_codec_id,
+			     int width, int height)
 {
 	if (filename == NULL)
 	{
 		errno = EINVAL;
+		ERRPRINTF("Bad filename");
 		return NULL;
 	}
 
 	if (ep_codec_id == 0)
 	{
 		errno = EINVAL;
+		ERRPRINTF("Bad codec_id");
 		return NULL;
 	}
 
@@ -379,11 +382,19 @@ Enc_params_t *encoder_create(const char *filename,
 	}
 
 	params->cparams = avcodec_parameters_alloc();
-//	*ctx = avcodec_alloc_context3(*codec);
 	if (!params->cparams)
 	{
 		errno = ENOMEM;
 		ERRPRINTF("Could not allocate codec parameters");
+		return NULL;
+	}
+
+	params->ctx = avcodec_alloc_context3(params->codec);
+
+	if (!params->ctx)
+	{
+		errno = ENOMEM;
+		ERRPRINTF("Could not allocate codec context");
 		return NULL;
 	}
 
@@ -402,8 +413,8 @@ Enc_params_t *encoder_create(const char *filename,
 		return NULL;
 	}
 
-	AVCodecParameters	*cp		= params->cparams;
-	AVCodec				*codec	= params->codec;
+	AVCodecParameters	*cp	= params->cparams;
+	AVCodec			*codec	= params->codec;
 //	AVFormatContext		*oc		= params->oc;
 
 	switch (codec->type) {
@@ -465,6 +476,7 @@ Enc_params_t *encoder_create(const char *filename,
 			break;
 		default:
 			errno = EINVAL;
+			ERRPRINTF("Bad codec_id");
 			goto err;
 			break;
 	}
@@ -515,7 +527,7 @@ Enc_params_t *encoder_create(const char *filename,
 
 	if (params->fmt->video_codec != AV_CODEC_ID_NONE)
 	{
-		ret = add_stream(&(params->video_st), params->oc, params->codec, params->cparams);
+		ret = add_stream(params);
 		if (ret < 0)
 		{
 			goto err;
@@ -526,7 +538,7 @@ Enc_params_t *encoder_create(const char *filename,
 
 	if (params->have_video)
 	{
-		ret = open_video(params->oc, params->codec, &(params->video_st), params->opt);
+		ret = open_video(params);
 		if (ret < 0)
 		{
 			goto err;
@@ -558,17 +570,16 @@ err:
 	return NULL;
 }
 
-static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
+static AVFrame *get_video_frame(AVCodecContext *ctx, OutputStream *ost, framedata_t bmp)
 {
-	AVCodecContext *c = ost->st->codec;
 	/* check if we want to generate more frames */
 #ifndef MAIN_LOOP_DEBUG_SESSION
-	if (av_compare_ts(ost->next_pts, ost->st->codec->time_base,
-					  STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
+	if (av_compare_ts(ost->next_pts, ctx->time_base,
+			STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
 #endif
 	int ret = 0;
-	ret = fill_yuv_image(ost->frame, c->width, c->height, bmp);
+	ret = fill_yuv_image(ost->frame, ctx->width, ctx->height, bmp);
 	if (ret < 0)
 	{
 		return NULL;
@@ -581,15 +592,13 @@ static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
  * encode one video frame and send it to the muxer
  * return 1 when encoding is finished, 0 otherwise
  */
-static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t bmp)
+static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStream *ost, framedata_t bmp)
 {
 	int ret = 0;
-	AVCodecContext *c = NULL;
 	AVFrame *frame = NULL;
 	int got_packet = 0;
-	c = ost->st->codec;
 
-	frame = get_video_frame(ost, bmp);
+	frame = get_video_frame(ctx, ost, bmp);
 	if (frame == NULL)
 	{
 		return AVERROR(errno);
@@ -607,7 +616,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 		pkt.data          = (uint8_t *)frame;
 		pkt.size          = sizeof(AVPicture);
 		pkt.pts = pkt.dts = frame->pts;
-		av_packet_rescale_ts(&pkt, c->time_base, ost->st->time_base);
+		av_packet_rescale_ts(&pkt, ctx->time_base, ost->st->time_base);
 		ret = av_interleaved_write_frame(oc, &pkt);
 	}
 	else
@@ -617,14 +626,14 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 
 		/* encode the image */
 #ifdef FFVER_3_0
-		ret = avcodec_encode_video2(c, &pkt, frame, &got_packet);
+		ret = avcodec_encode_video2(ctx, &pkt, frame, &got_packet);
 		if (ret < 0)
 		{
 			ERRPRINTF("Error encoding video frame: %s", av_err2str(ret));
 			return ret;
 		}
 #else
-		ret = avcodec_send_frame(c, frame); // necessary to fix with ffmpeg 3.0
+		ret = avcodec_send_frame(ctx, frame); // necessary to fix with ffmpeg 3.0
 		if (ret < 0)
 		{
 			ERRPRINTF("Error sending frame for encoding: %s", av_err2str(ret));
@@ -632,7 +641,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 		}
 		while (ret >= 0)
 		{
-			ret = avcodec_receive_packet(c, &pkt);
+			ret = avcodec_receive_packet(ctx, &pkt);
 			if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret == AVERROR(EINVAL))
 			{
 				return 1;
@@ -651,7 +660,7 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 
 		if (got_packet)
 		{
-			ret = write_frame(oc, &c->time_base, ost->st, &pkt);
+			ret = write_frame(oc, &ctx->time_base, ost->st, &pkt);
 		}
 		else
 		{
@@ -666,9 +675,8 @@ static int write_video_frame(AVFormatContext *oc, OutputStream *ost, framedata_t
 	return (frame || got_packet) ? 0 : 1;
 }
 
-static void close_stream(AVFormatContext *oc, OutputStream *ost)
+static void close_stream(OutputStream *ost)
 {
-	avcodec_close(ost->st->codec);
 	av_frame_free(&ost->frame);
 	av_frame_free(&ost->tmp_frame);
 }
@@ -704,7 +712,7 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 #ifdef MAIN_LOOP_DEBUG_SESSION
 		double time = 0;
 #endif
-		params->encode_video = (int)(write_video_frame(params->oc, &(params->video_st), data) == 0);
+		params->encode_video = (int)(write_video_frame(params->ctx, params->oc, &(params->video_st), data) == 0);
 		if (params->encode_video < 0)
 		{
 			return params->encode_video;
@@ -743,7 +751,8 @@ int encoder_write(Enc_params_t *params)
 
 	if (params->have_video)
 	{
-		close_stream(params->oc, &(params->video_st));
+		avcodec_close(params->ctx);
+		close_stream(&(params->video_st));
 	}
 
 	if (!(params->fmt->flags & AVFMT_NOFILE))
