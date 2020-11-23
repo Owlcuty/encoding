@@ -35,11 +35,14 @@
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 
+#ifndef ERRPRINTF
 #ifdef ENC_DEBUG_SESSION
 #define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
 #else
 #define ERRPRINTF(format, ...) 
 #endif
+#endif
+
 
 enum EPCodecId
 {
@@ -66,22 +69,13 @@ int EP_get_encode_video(EncoderParameters_p params);
  * @param codec_id 
  * @param width of output media file
  * @param height of output media file
- * @param preset_filename name of user's file with custom params of codec
- * Like:
- * 
- * `
- * option1=value1
- * option2=value2
- * `
- * May be NULL
  * 
  * @return special data with encoder parameters EncoderParameters_p. Can set errno on EINVAL
  */
 EncoderParameters_p encoder_create(const char *filename,
 //							const char *codec_name,
 							enum EPCodecId codec_id,
-							int width, int height,
-							const char *preset_filename);
+							int width, int height);
 
 /**
  * @brief 

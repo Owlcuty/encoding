@@ -6,9 +6,9 @@
 #define BMPHDUMP(bmph) bmph_dump(bmph, #bmph)
 #define BMPINFODUMP(bmpinfo) bmpinfo_dump(bmpinfo, #bmpinfo)
 
-#define BMP_PRINT_DUMP_D(num)	printf("\t %20s = %8d (size = %d) [%X],\n",		#num,		num, sizeof(num), &num);
-#define BMP_PRINT_DUMP_HU(num)	printf("\t %20s = %8hu (size = %d) [%X],\n",	#num,		num, sizeof(num), &num);
-#define BMP_PRINT_DUMP_X(num)	printf("\t %20s = %8X (size = %d) [%X],\n",		#num,		num, sizeof(num), &num);
+#define BMP_PRINT_DUMP_D(num)	printf("\t %20s = %8d (size = %zu) [%lX],\n",	#num,	num, sizeof(num), (size_t)&num);
+#define BMP_PRINT_DUMP_HU(num)	printf("\t %20s = %8hu (size = %zu) [%lX],\n",	#num,	num, sizeof(num), (size_t)&num);
+#define BMP_PRINT_DUMP_X(num)	printf("\t %20s = %8X (size = %zu) [%lX],\n",	#num,	num, sizeof(num), (size_t)&num);
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,10 +26,12 @@
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 
-#ifdef BMP_DEBUG_SESSION
-#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
-#else
-#define ERRPRINTF(format, ...) 
+#ifndef ERRPRINTF
+	#ifdef BMP_DEBUG_SESSION
+		#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
+	#else
+		#define ERRPRINTF(format, ...)
+	#endif
 #endif
 
 
@@ -96,4 +98,4 @@ framedata_t load_bmp(const char* filename, int *width, int *height);
  * @param frame_ind num of frame
  * @return zero on success, an errno code on failure.
  */
-int load_frame(framedata_t **data, const char *filename, size_t frame_ind);
+int load_frame(framedata_t *data, const char *filename, size_t frame_ind);

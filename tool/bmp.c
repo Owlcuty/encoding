@@ -4,7 +4,7 @@
 void bmph_dump(bitmapfileheader_t *bmph, const char* name)
 {
 	printf("\n---------------\n");
-	printf("%s [%X]\n{\n", name, bmph);
+	printf("%s [%lX]\n{\n", name, (size_t)bmph);
 	BMP_PRINT_DUMP_X(bmph->bfType);
 	BMP_PRINT_DUMP_D(bmph->bfSize);
 	BMP_PRINT_DUMP_HU(bmph->bfReserved1);
@@ -17,7 +17,7 @@ void bmph_dump(bitmapfileheader_t *bmph, const char* name)
 void bmpinfo_dump(bitmapinfo_t *bmpinfo, const char* name)
 {
 	printf("\n---------------\n");
-	printf("%s [%X]\n{\n", name, bmpinfo);
+	printf("%s [%lX]\n{\n", name, (size_t)bmpinfo);
 	
 	BMP_PRINT_DUMP_D(bmpinfo->biSize);
 	BMP_PRINT_DUMP_D(bmpinfo->biWidth);
@@ -63,16 +63,16 @@ uint8_t bitextract(const DWORD byte, const DWORD mask)
 	{
 		return 0;
 	}
-	
+
 	DWORD maskBuf = mask;
 	DWORD maskPadding = 0;
-	
+
 	while (!(maskBuf & 1))
 	{
 		maskBuf >>= 1;
 		maskPadding++;
 	}
-	
+
 	return (byte & mask) >> maskPadding;
 }
 
@@ -87,39 +87,41 @@ framedata_t load_bmp(const char* filename,
 	assert(filename);
 	assert(width);
 	assert(height);
-	
+
 	*width  = -1;
 	*height = -1;
-	
+
 	uint8_t			*tmp_buf	= NULL;
 	uint8_t			*buffer		= NULL;
-	
+
+	framedata_t frame = NULL;
+
 	FILE *file = fopen(filename, "rb");
 	if (!file)
 	{
-		fprintf(stderr, "%d:: Could not open file %s\n", __LINE__, filename);
+		ERRPRINTF("Could not open file %s", filename);
 		return NULL;
 	}
-	
+
 	bitmapfileheader_t bmph = {};
-	
+
 	size_t res = fread(&bmph, 1, sizeof(bitmapfileheader_t), file);
 	if (res != sizeof(bitmapfileheader_t))
 	{
-		fprintf(stderr, "%d:: Bad reading file %s\n", filename);
+		ERRPRINTF("Bad reading file %s", filename);
 		goto err;
 	}
-	
+
 #ifdef BMP_DEBUG_SESSION
 	BMPHDUMP(&bmph);
 #endif
-	
+
 	if (bmph.bfType != 0x4D42)
 	{
-		fprintf(stderr, "%d:: Bad signature [[ %s.bfType ]] {%X}\n", __LINE__, ARG_NAME(bmph), bmph.bfType);
+		ERRPRINTF("Bad signature [[ %s.bfType ]] {%X}", ARG_NAME(bmph), bmph.bfType);
 		goto err;
 	}
-	
+
 #ifdef BMP_DEBUG_SESSION
 	int filesize = get_filesize_debug(file, filename);
 #else
@@ -127,69 +129,69 @@ framedata_t load_bmp(const char* filename,
 #endif
 	if (filesize == -1)
 	{
-		fprintf(stderr, "%d:: Bad read size of %s\n", __LINE__, filename);
+		ERRPRINTF("Bad read size of %s", filename);
 		goto err;
 	}
-	
+
 	buffer = (uint8_t*)calloc(filesize, sizeof(*buffer));
 	if (!buffer)
 	{
 		perror("calloc() failed");
 		goto err;
 	}
-	
+
 	if (fread(buffer, 1, filesize, file) < filesize - sizeof(bitmapfileheader_t))
 	{
-		fprintf(stderr, "%d:: Bad here :: %s\n", __LINE__, __PRETTY_FUNCTION__);
+		ERRPRINTF("Bad here :: %s", __PRETTY_FUNCTION__);
 		goto err;
 	}
-	
+
 #ifdef BMP_DEBUG_SESSION
 	BMPHDUMP(&bmph);
 #endif
-	
+
 	uint8_t *cur_pos = buffer;
-	
+
 	if (bmph.bfSize			!= filesize	||
 		bmph.bfReserved1	!= 0		||
 		bmph.bfReserved2	!= 0)
 	{
 		printf("%d::%s::%s BAD HERE\n -- bfSize {%d} \\\\ filesize {%d} -- bfReserved1 {%d} -- bfReserved2 {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
 			bmph.bfSize, filesize, bmph.bfReserved1, bmph.bfReserved2);
-	
+
 		goto err;
 	}
-	
+
 	bitmapinfo_t bmpinfo;
 	memcpy(&bmpinfo.biSize, cur_pos, sizeof(bmpinfo.biSize));
 	cur_pos += sizeof(bmpinfo.biSize);
-	
+
 	if (bmpinfo.biSize >= 12)
 	{
 		memcpy(&bmpinfo.biWidth, cur_pos, sizeof(bmpinfo.biWidth)); // Объединить в функцию "чтения"
 		cur_pos += sizeof(bmpinfo.biWidth);
-	
+
 		memcpy(&bmpinfo.biHeight, cur_pos, sizeof(bmpinfo.biHeight)); // Объединить в функцию "чтения"
 		cur_pos += sizeof(bmpinfo.biHeight);
-	
+
 		memcpy(&bmpinfo.biPlanes, cur_pos, sizeof(bmpinfo.biPlanes)); // ...
 		cur_pos += sizeof(bmpinfo.biPlanes);
-	
+
 		memcpy(&bmpinfo.biBitCount, cur_pos, sizeof(bmpinfo.biBitCount));
 		cur_pos += sizeof(bmpinfo.biBitCount);
 	}
 	else
 	{
-		fprintf(stderr, "%d:: Bad bitmap core\n", __LINE__);
+		ERRPRINTF("Bad bitmap core");
 		goto err;
 	}
-	
+
 	int colorsCount = bmpinfo.biBitCount >> 3;
 	if (colorsCount < 3)
 	{
 		colorsCount = 3;
 	}
-	
+
 	int bitsOnColor = bmpinfo.biBitCount / colorsCount;
 	int maskVal 	= (1 << bitsOnColor) - 1;
 	
@@ -213,11 +215,11 @@ framedata_t load_bmp(const char* filename,
 		memcpy(&bmpinfo.biClrImportant, cur_pos, sizeof(bmpinfo.biClrImportant)); // Объединить в функцию "чтения"
 		cur_pos += sizeof(bmpinfo.biClrImportant);
 	}
-	
+
 	bmpinfo.biRedMask   = 0;
 	bmpinfo.biGreenMask = 0;
 	bmpinfo.biBlueMask  = 0;
-	
+
 	if (bmpinfo.biSize >= 52)
 	{
 		memcpy(&bmpinfo.biRedMask, cur_pos, sizeof(bmpinfo.biRedMask));
@@ -229,7 +231,7 @@ framedata_t load_bmp(const char* filename,
 		memcpy(&bmpinfo.biBlueMask, cur_pos, sizeof(bmpinfo.biBlueMask));
 		cur_pos += sizeof(bmpinfo.biBlueMask);
 	}
-	
+
 	if (!bmpinfo.biRedMask		|| 
 		!bmpinfo.biGreenMask	||
 		!bmpinfo.biBlueMask)
@@ -238,7 +240,7 @@ framedata_t load_bmp(const char* filename,
 		bmpinfo.biGreenMask	= maskVal << bitsOnColor;
 		bmpinfo.biBlueMask	= maskVal;
 	}
-	
+
 	if (bmpinfo.biSize >= 56)
 	{
 		memcpy(&bmpinfo.biAlphaMask, cur_pos, sizeof(bmpinfo.biAlphaMask));
@@ -248,23 +250,23 @@ framedata_t load_bmp(const char* filename,
 	{
 		bmpinfo.biAlphaMask = maskVal << (bitsOnColor * 3);
 	}
-	
+
 	if (bmpinfo.biSize != 12 && bmpinfo.biSize != 40 && bmpinfo.biSize != 52 &&
 		bmpinfo.biSize != 56 && bmpinfo.biSize != 108) {
-		fprintf(stderr, "%d:: Error: Unsupported BMP format.", __LINE__);
+		ERRPRINTF("Error: Unsupported BMP format.");
 		goto err;
 	}
-	
+
 	if (bmpinfo.biBitCount != 16 && bmpinfo.biBitCount != 24 && bmpinfo.biBitCount != 32) {
-		fprintf(stderr, "%d:: Error: Unsupported BMP bit count.", __LINE__);
+		ERRPRINTF("Error: Unsupported BMP bit count.");
 		goto err;
 	}
-	
+
 	if (bmpinfo.biCompression != 0 && bmpinfo.biCompression != 3) {
-		fprintf(stderr, "%d:: Error: Unsupported BMP compression.", __LINE__);
+		ERRPRINTF("Error: Unsupported BMP compression.");
 		goto err;
 	}
-	
+
 	if (bmph.bfOffBits != 14 + bmpinfo.biSize ||
 		bmpinfo.biWidth  < 1 || bmpinfo.biWidth  > 10000 ||
 		bmpinfo.biHeight < 1 || bmpinfo.biHeight > 10000 ||
@@ -272,26 +274,26 @@ framedata_t load_bmp(const char* filename,
 		bmpinfo.biCompression	!= 0
 		)
 	{
-		fprintf(stderr, "%d:: Bad data", __LINE__);
+		ERRPRINTF("Bad data");
 		goto err;
 	}
-	
+
 #ifdef BMP_DEBUG_SESSION
 	BMPHDUMP(&bmph);
 #endif
-	
+
 	*width  = bmpinfo.biWidth;
 	*height = bmpinfo.biHeight;
-	
+
 	int mwidth = (3 * (*width) + 3) & (-4);
-	
+
 	tmp_buf = (uint8_t*)calloc(bmpinfo.biSizeImage, sizeof(*tmp_buf));
 	if (!tmp_buf)
 	{
 		perror("calloc() failed");
 		goto err;
 	}
-	
+
 #ifdef BMP_DEBUG_SESSION
 	printf("%d:: %d bytes was alloced\n", __LINE__, bmpinfo.biSizeImage); // log (to del // debug session)
 #endif
@@ -307,8 +309,13 @@ framedata_t load_bmp(const char* filename,
 #endif
 	}
 	memcpy(tmp_buf, cur_pos, bmpinfo.biSizeImage);
-	
-	framedata_t frame = calloc(4 * (*width) * (*height), sizeof(*frame));
+
+	frame = calloc(4 * (*width) * (*height), sizeof(*frame));
+	if (frame == NULL)
+	{
+		goto err;
+	}
+
 	uint8_t *ptr = frame;
 	// BGR -> RGB
 	for (size_t y = *height; y > 0; y--)
@@ -341,7 +348,7 @@ err:
 	return NULL;
 }
 
-int load_frame(framedata_t** data, const char *filename, size_t frame_ind)
+int load_frame(framedata_t* data, const char *filename, size_t frame_ind)
 {
 	if (filename == NULL)
 	{

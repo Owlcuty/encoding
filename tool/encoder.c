@@ -13,6 +13,8 @@
 
 #include <libavformat/avformat.h>
 
+#include "bmp.h"
+
 const int EP_CODEC_ID_VP8_ = AV_CODEC_ID_VP8;
 const int EP_CODEC_ID_VP9_ = AV_CODEC_ID_VP9;
 
@@ -57,7 +59,7 @@ typedef struct dict_codec_context
 } dict_ccontext_t;
 
 /* vp8 context -----------*/
-const AVDictionaryEntry _vp8_dict[4] = {
+const AVDictionaryEntry _vp8_dict[] = {
 	{"deadline", "realtime"},
 	{"cpu-used", "16"},
 	{"lag-in-frames", "16"},
@@ -105,104 +107,6 @@ const dict_ccontext_t _vp9_context = {
 	_vp9_dict,
 	14
 };
-
-
-int set_preset(const char* filename, AVDictionary** opt)
-{
-	FILE* file_preset = NULL;
-	char *buf = NULL;
-	char *key = NULL;
-	char *val = NULL;
-	
-	file_preset = fopen(filename, "r");
-	if (file_preset == NULL)
-	{
-		goto err;
-	}
-
-	struct stat sb = { 0 };
-
-	if (stat(filename, &sb) == -1)
-	{
-		goto err;
-	}
-
-	size_t file_size = sb.st_size;
-
-	ssize_t ret = 0;
-
-	buf = (char*)calloc(file_size + 1, sizeof(*buf));
-	if (buf == NULL)
-	{
-		goto err;
-	}
-	ret = fread(buf, file_size, 1, file_preset);
-	if (ret < file_size)
-	{
-		goto err;
-	}
-
-	size_t max_line = 256;
-
-	char *cur = buf;
-	key = (char*)calloc(max_line, 1);
-	if (key == NULL)
-	{
-		goto err;
-	}
-
-	val = (char*)calloc(max_line, 1);
-	if (val == NULL)
-	{
-		goto err;
-	}
-
-	while (cur != NULL && cur < buf + file_size)
-	{
-		cur += strspn(cur, "\n");
-		ret = sscanf(cur, "%[^= ]", key);
-		if (ret != 1)
-		{
-			goto err;
-		}
-		ret = strchr(cur, '=');
-		if (ret == NULL)
-		{
-			goto err;
-		}
-		cur = ret;
-
-		ret = sscanf(cur, "%s", val);
-		if (ret != 1)
-		{
-			goto err;
-		}
-		ret = strchr(cur, '\n');
-		cur = ret;
-
-		av_dict_set(opt, key, val, 0);
-	}
-
-	free(buf);
-
-	free(key);
-	free(val);
-
-	fclose(file_preset);
-
-	return 0;
-
-err:
-	free(buf);
-
-	free(key);
-	free(val);
-
-	fclose(file_preset);
-
-	return AVERROR(errno);
-
-}
 
 AVFrame *picture, *tmp_picture;
 uint8_t *video_outbuf;
@@ -335,10 +239,74 @@ void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt)
 	}
 }
 
+/* Add an output stream. */
+int add_stream(OutputStream *ost, AVFormatContext *oc,
+					AVCodec *codec,
+					const AVCodecParameters *cparams)
+{
+	int ret = 0;
+
+	ost->st = avformat_new_stream(oc, codec);
+	if (ost->st == NULL) {
+		ERRPRINTF("Could not allocate stream");
+		return AVERROR(errno);
+	}
+	ost->st->id = oc->nb_streams - 1;
+	ret = avcodec_parameters_to_context(ost->st->codec, cparams);
+	if (ret < 0)
+	{
+		return ret;
+	}
+
+	switch (codec->type)
+	{
+		case AVMEDIA_TYPE_AUDIO:
+			ost->st->time_base = (AVRational){ 1, ost->st->codecpar->sample_rate };
+
+			ost->st->codec->sample_fmt = codec->sample_fmts ?
+										 codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;;
+
+			break;
+
+		case AVMEDIA_TYPE_VIDEO:
+			ost->st->time_base = (AVRational){ 1, STREAM_FRAME_RATE };
+
+
+		/* timebase: This is the fundamental unit of time (in seconds) in terms
+         * of which frame timestamps are represented. For fixed-fps content,
+         * timebase should be 1/framerate and timestamp increments should be
+         * identical to 1. */
+
+			ost->st->codec->gop_size		= 12; // emit one intra frame every twelve frames at most.
+			ost->st->codec->pix_fmt			= STREAM_PIX_FMT;
+
+			ost->st->codec->thread_count	= 4;
+
+			if (ost->st->codec->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
+				/* just for testing, we also add B frames */
+				ost->st->codec->max_b_frames = 1;
+			}
+			if (ost->st->codec->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
+				/* Needed to avoid using macroblocks in which some coeffs overflow.
+				 * This does not happen with normal video, it just happens here as
+				 * the motion of the chroma plane does not match the luma plane. */
+				ost->st->codec->mb_decision = 2;
+			}
+
+			break;
+
+		default:
+			break;
+	}
+
+	ost->st->codec->time_base = ost->st->time_base;
+
+	return 0;
+}
+
 Enc_params_t *encoder_create(const char *filename,
 							 enum EPCodecId ep_codec_id,
-							 int width, int height,
-							 const char *preset_filename)
+							 int width, int height)
 {
 	if (filename == NULL)
 	{
@@ -380,7 +348,6 @@ Enc_params_t *encoder_create(const char *filename,
 	if (params->codec == NULL)
 	{
 		errno = EINVAL;
-//		ERRPRINTF("Could not find encoder for '%s'", codec_name);
 		ERRPRINTF("Could not find encoder for '%s'", avcodec_get_name(codec_id));
 		return NULL;
 	}
@@ -465,24 +432,10 @@ Enc_params_t *encoder_create(const char *filename,
 	switch(codec->id)
 	{
 		case AV_CODEC_ID_VP9:
-			if (preset_filename == NULL)
-			{
-				set_dict_context(_vp9_context, &(params->opt));
-			}
-			else
-			{
-				set_preset(preset_filename, &(params->opt));
-			}
+			set_dict_context(_vp9_context, &(params->opt));
 			break;
 		case AV_CODEC_ID_VP8:
-			if (preset_filename == NULL)
-			{
-				set_dict_context(_vp8_context, &(params->opt));
-			}
-			else
-			{
-				set_preset(preset_filename, &(params->opt));
-			}
+			set_dict_context(_vp8_context, &(params->opt));
 			break;
 		default:
 			errno = EINVAL;
@@ -515,7 +468,9 @@ Enc_params_t *encoder_create(const char *filename,
 	params->have_video   = 0;
 	params->encode_video = 0;
 
+#ifdef FFVER_3_0
 	av_register_all();
+#endif
 
 	params->fmt = params->oc->oformat;
 	if (!params->fmt)
@@ -537,7 +492,7 @@ Enc_params_t *encoder_create(const char *filename,
 		ret = add_stream(&(params->video_st), params->oc, params->codec, params->cparams);
 		if (ret < 0)
 		{
-			return ret;
+			goto err;
 		}
 		params->have_video = 1;
 		params->encode_video = 1;
@@ -575,71 +530,6 @@ Enc_params_t *encoder_create(const char *filename,
 
 err:
 	return NULL;
-}
-
-/* Add an output stream. */
-int add_stream(OutputStream *ost, AVFormatContext *oc,
-					AVCodec *codec,
-					const AVCodecParameters *cparams)
-{
-	int ret = 0;
-
-	ost->st = avformat_new_stream(oc, codec);
-	if (ost->st == NULL) {
-		ERRPRINTF("Could not allocate stream");
-		return AVERROR(errno);
-	}
-	ost->st->id = oc->nb_streams - 1;
-	ret = avcodec_parameters_to_context(ost->st->codec, cparams);
-	if (ret < 0)
-	{
-		return ret;
-	}
-
-	switch (codec->type)
-	{
-		case AVMEDIA_TYPE_AUDIO:
-			ost->st->time_base = (AVRational){ 1, ost->st->codecpar->sample_rate };
-
-			ost->st->codec->sample_fmt = codec->sample_fmts ?
-										 codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;;
-
-			break;
-
-		case AVMEDIA_TYPE_VIDEO:
-			ost->st->time_base = (AVRational){ 1, STREAM_FRAME_RATE };
-
-
-		/* timebase: This is the fundamental unit of time (in seconds) in terms
-         * of which frame timestamps are represented. For fixed-fps content,
-         * timebase should be 1/framerate and timestamp increments should be
-         * identical to 1. */
-
-			ost->st->codec->gop_size		= 12; // emit one intra frame every twelve frames at most.
-			ost->st->codec->pix_fmt			= STREAM_PIX_FMT;
-
-			ost->st->codec->thread_count	= 4;
-
-			if (ost->st->codec->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-				/* just for testing, we also add B frames */
-				ost->st->codec->max_b_frames = 1;
-			}
-			if (ost->st->codec->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-				/* Needed to avoid using macroblocks in which some coeffs overflow.
-				 * This does not happen with normal video, it just happens here as
-				 * the motion of the chroma plane does not match the luma plane. */
-				ost->st->codec->mb_decision = 2;
-			}
-
-			break;
-
-		default:
-			break;
-	}
-
-	ost->st->codec->time_base = ost->st->time_base;
-
-	return 0;
 }
 
 static AVFrame *get_video_frame(OutputStream *ost, framedata_t bmp)
@@ -765,12 +655,12 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 		return AVERROR(errno);
 	}
 
-	framedata_t *data = NULL;
+	framedata_t data = NULL;
 	int ret = 0;
 	switch (type)
 	{
 		case 0: // framedata_t* frame
-			data = (framedata_t *)data_;
+			data = (framedata_t)data_;
 			break;
 		case 1: // const char* filename
 			ret = load_frame(&data, (const char*)data_, frame_ind);
