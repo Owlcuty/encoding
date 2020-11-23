@@ -15,6 +15,30 @@
 
 #include "bmp.h"
 
+#define STREAM_DURATION		60.0
+#define STREAM_FRAME_RATE	10 /* 25 fps */
+#define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
+#define SCALE_FLAGS			0
+
+#define AV_CODEC_FLAG_GLOBAL_HEADER (1 << 22)
+#define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
+#define AVFMT_RAWPICTURE 0x0020
+
+#define ENC_DEBUG_SESSION
+//#define MAIN_LOOP_DEBUG_SESSION
+
+#ifndef __FILENAME__
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#endif
+
+#ifndef ERRPRINTF
+#ifdef ENC_DEBUG_SESSION
+#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
+#else
+#define ERRPRINTF(format, ...) 
+#endif
+#endif
+
 const int EP_CODEC_ID_VP8_ = AV_CODEC_ID_VP8;
 const int EP_CODEC_ID_VP9_ = AV_CODEC_ID_VP9;
 
@@ -23,10 +47,8 @@ typedef struct OutputStream {
 	AVStream *st;
 	/* pts of the next frame that will be generated */
 	int64_t next_pts;
-	int samples_count;
 	AVFrame *frame;
 	AVFrame *tmp_frame;
-	float t, tincr, tincr2;
 } OutputStream;
 
 /**
@@ -107,10 +129,6 @@ const dict_ccontext_t _vp9_context = {
 	_vp9_dict,
 	14
 };
-
-AVFrame *picture, *tmp_picture;
-uint8_t *video_outbuf;
-int video_outbuf_size;
 
 static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
 {
@@ -202,17 +220,20 @@ static int open_video(AVFormatContext *oc, AVCodec *codec, OutputStream *ost, AV
 
 static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 {
-	struct SwsContext *sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24,
+	struct SwsContext *sws_ctx = NULL;
+	AVFrame *frame1 = NULL;
+
+	sws_ctx = sws_getContext(width, height, AV_PIX_FMT_RGB24,
 												width, height, AV_PIX_FMT_YUV420P,
 												0, NULL, NULL, NULL);
 	if (!sws_ctx)
 	{
 		ERRPRINTF("Bad sws_getContext");
 		errno = ENOMEM;
-		return AVERROR(errno);
+		goto err;
 	}
 
-	AVFrame* frame1 = alloc_picture(AV_PIX_FMT_RGB24, width, height);
+	frame1 = alloc_picture(AV_PIX_FMT_RGB24, width, height);
 	av_image_fill_arrays(frame1->data, frame1->linesize, (const uint8_t*)bmp, AV_PIX_FMT_RGB24, width, height, 1);
 
 	int ret = av_image_alloc(pict->data, pict->linesize, pict->width, pict->height, AV_PIX_FMT_YUV420P, 32);
@@ -220,7 +241,7 @@ static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 	{
 		ERRPRINTF("Could not allocate raw picture buffer");
 		errno = ENOMEM;
-		return AVERROR(errno);
+		goto err;
 	}
 
 	sws_scale(sws_ctx, (const uint8_t * const *)frame1->data, frame1->linesize, 0,
@@ -229,6 +250,11 @@ static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 	av_frame_free(&frame1);
 
 	return 0;
+
+	err:
+		av_frame_free(&frame1);
+
+		return AVERROR(errno);
 }
 
 void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt)

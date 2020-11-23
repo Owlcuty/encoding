@@ -16,34 +16,6 @@
 
 #include <errno.h>
 
-
-#define STREAM_DURATION		60.0
-#define STREAM_FRAME_RATE	10 /* 25 fps */
-#define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
-#define SCALE_FLAGS			0
-
-
-#define AV_CODEC_FLAG_GLOBAL_HEADER (1 << 22)
-#define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
-#define AVFMT_RAWPICTURE 0x0020
-
-#define ENC_DEBUG_SESSION
-//#define MAIN_LOOP_DEBUG_SESSION
-
-
-#ifndef __FILENAME__
-#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-#endif
-
-#ifndef ERRPRINTF
-#ifdef ENC_DEBUG_SESSION
-#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
-#else
-#define ERRPRINTF(format, ...) 
-#endif
-#endif
-
-
 enum EPCodecId
 {
 	EP_CODEC_ID_VP8,
