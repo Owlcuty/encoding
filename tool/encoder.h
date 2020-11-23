@@ -1,28 +1,13 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <string.h>
-#include <math.h>
-
+#include <sys/param.h>
 #include <sys/types.h>
-#include <sys/stat.h>
+#include <inttypes.h>
 
-#include <assert.h>
-//#define NDEBUG
-
-#include <time.h>
-
-
-#include <errno.h>
 
 enum EPCodecId
 {
 	EP_CODEC_ID_VP8,
 	EP_CODEC_ID_VP9
 };
-
-//#define FFVER_3_0
 
 typedef uint8_t *framedata_t;
 

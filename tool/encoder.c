@@ -1,4 +1,5 @@
-#include "encoder.h"
+
+
 
 #include <libavcodec/avcodec.h>
 
@@ -13,7 +14,8 @@
 
 #include <libavformat/avformat.h>
 
-#include "bmp.h"
+#include "encoder.h"
+
 
 #define STREAM_DURATION		60.0
 #define STREAM_FRAME_RATE	10 /* 25 fps */
