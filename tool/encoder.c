@@ -59,7 +59,6 @@ typedef struct OutputStream {
  */
 typedef struct EncoderParameters {
 	AVCodec			*codec;
-	AVCodecParameters 	*cparams;
 	AVCodecContext		*ctx;
 	AVFormatContext		*oc;
 	AVDictionary		*opt;
@@ -188,6 +187,7 @@ static int open_video(Enc_params_t *params)
 	AVDictionary *opt = NULL;
 	av_dict_copy(&opt, params->opt, 0);
 	/* open the codec */
+	ERRPRINTF("params->..->codec_id ctx{%d}[%s] codec{%d}[%s]", params->ctx->codec_id, avcodec_get_name(params->ctx->codec_id),  params->codec->id, avcodec_get_name(params->ctx->codec_id));
 	ret = avcodec_open2(c, params->codec, &opt);
 	av_dict_free(&opt);
 	if (ret < 0) {
@@ -222,6 +222,12 @@ static int open_video(Enc_params_t *params)
 
 static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 {
+	if (bmp == NULL)
+	{
+		ERRPRINTF("Bad bmp data");
+		errno = EINVAL;
+		return AVERROR(errno);
+	}
 	struct SwsContext *sws_ctx = NULL;
 	AVFrame *frame1 = NULL;
 
@@ -279,7 +285,8 @@ int add_stream(Enc_params_t *params)
 		return AVERROR(errno);
 	}
 	ost->st->id = params->oc->nb_streams - 1;
-	ret = avcodec_parameters_to_context(params->ctx, params->cparams);
+
+	ret = avcodec_parameters_from_context(ost->st->codecpar, params->ctx);
 	if (ret < 0)
 	{
 		return ret;
@@ -291,7 +298,7 @@ int add_stream(Enc_params_t *params)
 			ost->st->time_base = (AVRational){ 1, ost->st->codecpar->sample_rate };
 
 			params->ctx->sample_fmt = params->codec->sample_fmts ?
-										 params->codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;;
+										 params->codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
 
 			break;
 
@@ -342,13 +349,6 @@ Enc_params_t *encoder_create(const char *filename,
 		return NULL;
 	}
 
-	if (ep_codec_id == 0)
-	{
-		errno = EINVAL;
-		ERRPRINTF("Bad codec_id");
-		return NULL;
-	}
-
 	enum AVCodecID codec_id = 0;
 	switch (ep_codec_id)
 	{
@@ -381,14 +381,6 @@ Enc_params_t *encoder_create(const char *filename,
 		return NULL;
 	}
 
-	params->cparams = avcodec_parameters_alloc();
-	if (!params->cparams)
-	{
-		errno = ENOMEM;
-		ERRPRINTF("Could not allocate codec parameters");
-		return NULL;
-	}
-
 	params->ctx = avcodec_alloc_context3(params->codec);
 
 	if (!params->ctx)
@@ -413,50 +405,49 @@ Enc_params_t *encoder_create(const char *filename,
 		return NULL;
 	}
 
-	AVCodecParameters	*cp	= params->cparams;
 	AVCodec			*codec	= params->codec;
+	AVCodecContext	*ctx	= params->ctx;
 //	AVFormatContext		*oc		= params->oc;
 
 	switch (codec->type) {
 	case AVMEDIA_TYPE_AUDIO:
 		// ?
-		/*
-		*ctx->sample_fmt  = (*codec)->sample_fmts ?
-			(*codec)->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
-		*/
-		// ?
-		cp->bit_rate    = 64000;
-		cp->sample_rate = 44100;
+//		/*
+		ctx->sample_fmt  = codec->sample_fmts ?
+			codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
+//		*/
+//		 ?
+		ctx->bit_rate    = 64000;
+		ctx->sample_rate = 44100;
 		if (codec->supported_samplerates) {
-			cp->sample_rate = codec->supported_samplerates[0];
+			ctx->sample_rate = codec->supported_samplerates[0];
 			for (int i = 0; codec->supported_samplerates[i]; i++) {
 				if (codec->supported_samplerates[i] == 44100)
-					cp->sample_rate = 44100;
+					ctx->sample_rate = 44100;
 			}
 		}
-		cp->channels       = av_get_channel_layout_nb_channels(cp->channel_layout);
-		cp->channel_layout = AV_CH_LAYOUT_STEREO;
+		ctx->channels       = av_get_channel_layout_nb_channels(ctx->channel_layout);
+		ctx->channel_layout = AV_CH_LAYOUT_STEREO;
 		if (codec->channel_layouts) {
-			cp->channel_layout = codec->channel_layouts[0];
+			ctx->channel_layout = codec->channel_layouts[0];
 			for (int i = 0; codec->channel_layouts[i]; i++) {
 				if (codec->channel_layouts[i] == AV_CH_LAYOUT_STEREO)
-					cp->channel_layout = AV_CH_LAYOUT_STEREO;
+					ctx->channel_layout = AV_CH_LAYOUT_STEREO;
 			}
 		}
-		cp->channels        = av_get_channel_layout_nb_channels(cp->channel_layout);
+		ctx->channels        = av_get_channel_layout_nb_channels(ctx->channel_layout);
 		break;
 	case AVMEDIA_TYPE_VIDEO:
-		cp->codec_id = codec->id;
-		cp->bit_rate = 400000;
+		ctx->codec_id = codec->id;
+		ctx->bit_rate = 400000;
 		/* Resolution must be a multiple of two. */
-		cp->width    = width; //1366;//640;
-		cp->height   = height; //768;//360;
+		ctx->width    = width; //1366;//640;
+		ctx->height   = height; //768;//360;
 
 	break;
 	default:
 		break;
 	}
-	//		ost->st->time_base = (AVRational){ 1, c->sample_rate };
 
 	ret = av_dict_copy(&(params->opt), NULL, 0);
 	if (ret < 0)
@@ -484,14 +475,14 @@ Enc_params_t *encoder_create(const char *filename,
 
 #define JUST_FOR_TEST_VP9
 #ifdef JUST_FOR_TEST_VP9
-	dict_ccontext_t ctx = _vp9_context;
+	dict_ccontext_t ctx_opt = _vp9_context;
 	for (size_t p_id = 0; p_id < 14; p_id++)
 	{
 		AVDictionaryEntry* tempvar = NULL;
 		
-		if ((tempvar = av_dict_get(params->opt, ctx.param[p_id].key, NULL, 0)) == NULL)
+		if ((tempvar = av_dict_get(params->opt, ctx_opt.param[p_id].key, NULL, 0)) == NULL)
 		{
-			ERRPRINTF("Can't find %s", ctx.param[p_id].key);
+			ERRPRINTF("Can't find %s", ctx_opt.param[p_id].key);
 		}
 		else
 		{
@@ -599,6 +590,7 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 	int got_packet = 0;
 
 	frame = get_video_frame(ctx, ost, bmp);
+
 	if (frame == NULL)
 	{
 		return AVERROR(errno);
@@ -776,7 +768,8 @@ err:
 
 void encoder_destruct(Enc_params_t* params)
 {
-	avcodec_parameters_free(&(params->cparams));
+//	avcodec_parameters_free(&(params->cparams));
+	avcodec_free_context(&(params->ctx));
 
 	free(params);
 }

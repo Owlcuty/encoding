@@ -26,6 +26,7 @@
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 
+//#define BMP_DEBUG_SESSION
 #ifndef ERRPRINTF_BMP
 #ifdef BMP_DEBUG_SESSION
 	#define ERRPRINTF_BMP(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)

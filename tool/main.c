@@ -9,8 +9,8 @@ int main(int argc, char **argv)
 
 	const int codec_id = EP_CODEC_ID_VP9;
 
-	int width  = 1366;
-	int height = 768;
+	int width  = 3840;
+	int height = 1080;
 
 	int ret = 0;
 
@@ -26,10 +26,16 @@ int main(int argc, char **argv)
 
 	while (EP_get_encode_video(params))
 	{
-		ret = load_frame(&bmp, "../../forbmp/image%05d.bmp", frame_ind++);
+		printf("HERE!!!\n");
+		ret = load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++);
 		if (ret < 0)
 		{
 			perror("load_frame() fail: ");
+			return errno;
+		}
+		if (bmp == NULL)
+		{
+			perror("wtf: ");
 			return errno;
 		}
 
@@ -40,6 +46,7 @@ int main(int argc, char **argv)
 		}
 
 		free(bmp);
+		printf("Still HERE!!!\n");
 	}
 
 	ret = encoder_write(params);
