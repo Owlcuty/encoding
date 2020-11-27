@@ -1,6 +1,3 @@
-
-
-
 #include <libavcodec/avcodec.h>
 
 #include <libavutil/avassert.h>
