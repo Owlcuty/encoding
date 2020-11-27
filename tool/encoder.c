@@ -1,4 +1,5 @@
-#include "encoder.h"
+
+
 
 #include <libavcodec/avcodec.h>
 
@@ -13,7 +14,8 @@
 
 #include <libavformat/avformat.h>
 
-#include "bmp.h"
+#include "encoder.h"
+
 
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 
