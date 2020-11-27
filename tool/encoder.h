@@ -41,13 +41,15 @@ int EP_get_encode_video(EncoderParameters_p params);
  * @param codec_id 
  * @param width of output media file
  * @param height of output media file
+ * @param frame_rate fps
  * 
  * @return special data with encoder parameters EncoderParameters_p. Can set errno on EINVAL
  */
 EncoderParameters_p encoder_create(const char *filename,
 //							const char *codec_name,
 							enum EPCodecId codec_id,
-							int width, int height);
+							int width, int height,
+							uint16_t frame_rate);
 
 /**
  * @brief 

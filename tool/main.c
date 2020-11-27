@@ -12,9 +12,11 @@ int main(int argc, char **argv)
 	int width  = 3840;
 	int height = 1080;
 
+	size_t frame_rate = 10;
+
 	int ret = 0;
 
-	EncoderParameters_p params = encoder_create(filename, codec_id, width, height);
+	EncoderParameters_p params = encoder_create(filename, codec_id, width, height, frame_rate);
 	if (params == NULL)
 	{
 		perror("encoder_create() fail: ");
@@ -24,9 +26,8 @@ int main(int argc, char **argv)
 	framedata_t bmp = NULL;
 	int frame_ind = 1;
 
-	while (EP_get_encode_video(params))
+	while (EP_get_encode_video(params) && frame_ind < 500)
 	{
-		printf("HERE!!!\n");
 		ret = load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++);
 		if (ret < 0)
 		{
@@ -46,7 +47,6 @@ int main(int argc, char **argv)
 		}
 
 		free(bmp);
-		printf("Still HERE!!!\n");
 	}
 
 	ret = encoder_write(params);

@@ -15,13 +15,8 @@
 
 #include "bmp.h"
 
-#define STREAM_DURATION		60.0
-#define STREAM_FRAME_RATE	10 /* 25 fps */
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
-#define SCALE_FLAGS			0
 
-#define AV_CODEC_FLAG_GLOBAL_HEADER (1 << 22)
-#define CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
 #define AVFMT_RAWPICTURE 0x0020
 
 #define ENC_DEBUG_SESSION
@@ -66,6 +61,7 @@ typedef struct EncoderParameters {
 	OutputStream		video_st;
 	int			encode_video;
 	int			have_video;
+	uint16_t	frame_rate;
 } Enc_params_t;
 
 int EP_get_encode_video(Enc_params_t *params)
@@ -185,6 +181,7 @@ static int open_video(Enc_params_t *params)
 	AVCodecContext *c = params->ctx;
 	OutputStream *ost = &(params->video_st);
 	AVDictionary *opt = NULL;
+
 	av_dict_copy(&opt, params->opt, 0);
 	/* open the codec */
 	ERRPRINTF("params->..->codec_id ctx{%d}[%s] codec{%d}[%s]", params->ctx->codec_id, avcodec_get_name(params->ctx->codec_id),  params->codec->id, avcodec_get_name(params->ctx->codec_id));
@@ -215,6 +212,13 @@ static int open_video(Enc_params_t *params)
 			ERRPRINTF("Could not allocate temporary picture");
 			return AVERROR(errno);
 		}
+	}
+
+	ret = avcodec_parameters_from_context(ost->st->codecpar, c);
+	if (ret < 0)
+	{
+		ERRPRINTF("Bad `parameters_from_context`");
+		return ret;
 	}
 
 	return 0;
@@ -303,7 +307,8 @@ int add_stream(Enc_params_t *params)
 			break;
 
 		case AVMEDIA_TYPE_VIDEO:
-			ost->st->time_base = (AVRational){ 1, STREAM_FRAME_RATE };
+			ost->st->time_base = (AVRational){ 1, params->frame_rate };
+			params->ctx->time_base = ost->st->time_base;
 
 
 		/* timebase: This is the fundamental unit of time (in seconds) in terms
@@ -312,7 +317,7 @@ int add_stream(Enc_params_t *params)
          * identical to 1. */
 
 			params->ctx->gop_size		= 12; // emit one intra frame every twelve frames at most.
-			params->ctx->pix_fmt			= STREAM_PIX_FMT;
+			params->ctx->pix_fmt		= STREAM_PIX_FMT;
 
 			params->ctx->thread_count	= 4;
 
@@ -333,14 +338,13 @@ int add_stream(Enc_params_t *params)
 			break;
 	}
 
-	params->ctx->time_base = ost->st->time_base;
-
 	return 0;
 }
 
 Enc_params_t *encoder_create(const char *filename,
 			     enum EPCodecId ep_codec_id,
-			     int width, int height)
+			     int width, int height,
+				 uint16_t frame_rate)
 {
 	if (filename == NULL)
 	{
@@ -371,6 +375,8 @@ Enc_params_t *encoder_create(const char *filename,
 	{
 		return NULL;
 	}
+
+	params->frame_rate = frame_rate;
 
 	/* find the encoder */
 	params->codec = avcodec_find_encoder(codec_id);
@@ -564,12 +570,22 @@ err:
 static AVFrame *get_video_frame(AVCodecContext *ctx, OutputStream *ost, framedata_t bmp)
 {
 	/* check if we want to generate more frames */
+#if 0
 #ifndef MAIN_LOOP_DEBUG_SESSION
 	if (av_compare_ts(ost->next_pts, ctx->time_base,
 			STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
 		return NULL;
 #endif
+#endif
 	int ret = 0;
+
+	ret = av_frame_make_writable(ost->frame);
+	if (ret < 0)
+	{
+		ERRPRINTF("Bad `frame_make_writable`: %s", av_err2str(ret));
+		return NULL;
+	}
+
 	ret = fill_yuv_image(ost->frame, ctx->width, ctx->height, bmp);
 	if (ret < 0)
 	{
@@ -587,7 +603,6 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 {
 	int ret = 0;
 	AVFrame *frame = NULL;
-	int got_packet = 0;
 
 	frame = get_video_frame(ctx, ost, bmp);
 
@@ -618,37 +633,14 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 
 		/* encode the image */
 #ifdef FFVER_3_0
+		int got_packet = 0;
+
 		ret = avcodec_encode_video2(ctx, &pkt, frame, &got_packet);
 		if (ret < 0)
 		{
 			ERRPRINTF("Error encoding video frame: %s", av_err2str(ret));
 			return ret;
 		}
-#else
-		ret = avcodec_send_frame(ctx, frame); // necessary to fix with ffmpeg 3.0
-		if (ret < 0)
-		{
-			ERRPRINTF("Error sending frame for encoding: %s", av_err2str(ret));
-			return ret;
-		}
-		while (ret >= 0)
-		{
-			ret = avcodec_receive_packet(ctx, &pkt);
-			if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF || ret == AVERROR(EINVAL))
-			{
-				return 1;
-			}
-			else if (ret < 0)
-			{
-				ERRPRINTF("Error during encoding (receive frame)");
-				return ret;
-			}
-			else
-			{
-				av_packet_unref(&pkt);
-			}
-		}
-#endif
 
 		if (got_packet)
 		{
@@ -665,6 +657,30 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 		return ret;
 	}
 	return (frame || got_packet) ? 0 : 1;
+#else
+		ret = avcodec_send_frame(ctx, frame); // necessary to fix with ffmpeg 3.0
+		if (ret < 0)
+		{
+			ERRPRINTF("Error sending frame for encoding: %s", av_err2str(ret));
+			goto end;
+		}
+		
+		while (1)
+		{
+			ret = avcodec_receive_packet(ctx, &pkt);
+			
+			if (ret)
+				break;
+
+			pkt.stream_index = 0;
+			ret = write_frame(oc, &ctx->time_base, ost->st, &pkt);
+			av_packet_unref(&pkt);
+		}
+	}
+end:
+		ret = ((ret == AVERROR(EAGAIN)) ? 0 : -1);
+		return ret;
+#endif
 }
 
 static void close_stream(OutputStream *ost)
@@ -715,7 +731,7 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 		{
 			frame_ind = 1;
 		}
-		printf("\rVideo duration: %.3fs", time / STREAM_FRAME_RATE);
+		printf("\rVideo duration: %.3fs", time / params->frame_rate);
 		fflush(stdout);
 #endif
 
