@@ -108,9 +108,10 @@ static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AV
 
 static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 {
+	int ret = 0;
 	AVFrame *picture = NULL;
-	picture = av_frame_alloc();
 
+	picture = av_frame_alloc();
 	if (picture == NULL)
 	{
 		errno = ENOMEM;
@@ -120,8 +121,7 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 	picture->format = pix_fmt;
 	picture->width  = width;
 	picture->height = height;
-	
-	int ret = 0;
+
 	/* allocate the buffers for the frame data */
 	ret = av_frame_get_buffer(picture, 32);
 	if (ret < 0)
@@ -269,17 +269,6 @@ int add_stream(Enc_params_t *params)
 
 			params->ctx->thread_count	= 4;
 
-			if (params->ctx->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
-				/* just for testing, we also add B frames */
-				params->ctx->max_b_frames = 1;
-			}
-			if (params->ctx->codec_id == AV_CODEC_ID_MPEG1VIDEO) {
-				/* Needed to avoid using macroblocks in which some coeffs overflow.
-				 * This does not happen with normal video, it just happens here as
-				 * the motion of the chroma plane does not match the luma plane. */
-				params->ctx->mb_decision = 2;
-			}
-
 			break;
 
 		default:
@@ -343,8 +332,6 @@ Enc_params_t *encoder_create(const char *filename,
 	avformat_alloc_output_context2(&(params->oc), NULL, NULL, filename);
 	if (params->oc == NULL)
 	{
-		errno = ENOMEM;
-		return NULL;
 		avformat_alloc_output_context2(&(params->oc), NULL, "webm", filename);
 	}
 	if (params->oc == NULL)
@@ -502,7 +489,6 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 	AVFrame *frame = NULL;
 
 	frame = get_video_frame(ctx, ost, bmp);
-
 	if (frame == NULL)
 	{
 		return AVERROR(errno);
