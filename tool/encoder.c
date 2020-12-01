@@ -18,6 +18,10 @@
 
 #define AVFMT_RAWPICTURE 0x0020
 
+#ifndef NITEMS /* SIZEOF() */
+#	define NITEMS(__val)	(sizeof(__val) / sizeof(__val[0]))
+#endif
+
 const int EP_CODEC_ID_VP8_ = AV_CODEC_ID_VP8;
 const int EP_CODEC_ID_VP9_ = AV_CODEC_ID_VP9;
 
@@ -53,13 +57,6 @@ int EP_get_encode_video(Enc_params_t *params)
 	return params->encode_video;
 }
 
-
-typedef struct dict_codec_context
-{
-	const AVDictionaryEntry *param;
-	size_t cnt;
-} dict_ccontext_t;
-
 /* vp8 context -----------*/
 const AVDictionaryEntry _vp8_dict[] = {
 	{"deadline", "realtime"},
@@ -77,11 +74,6 @@ const AVDictionaryEntry _vp8_dict[] = {
 	{"arnr-maxframes", "7"},
 	{"arnr-strength", "5"},
 	{"arnr-type", "centered"}
-};
-
-const dict_ccontext_t _vp8_context = {
-	_vp8_dict,
-	14
 };
 
 //--------------------------
@@ -103,11 +95,6 @@ const AVDictionaryEntry _vp9_dict[] = {
 	{"arnr-maxframes", "15"},
 	{"arnr-strength", "5"},
 	{"arnr-type", "centered"}
-};
-
-const dict_ccontext_t _vp9_context = {
-	_vp9_dict,
-	14
 };
 
 static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
@@ -231,11 +218,11 @@ static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 		return AVERROR(errno);
 }
 
-void set_dict_context(const dict_ccontext_t ctx, AVDictionary **opt)
+void set_dict_context(const AVDictionaryEntry *ctx, AVDictionary **opt)
 {
-	for (size_t p_id = 0; p_id < ctx.cnt; p_id++)
+	for (size_t p_id = 0; p_id < NITEMS(ctx); p_id++)
 	{
-		av_dict_set(opt, ctx.param[p_id].key, ctx.param[p_id].value, 0);
+		av_dict_set(opt, ctx[p_id].key, ctx[p_id].value, 0);
 	}
 }
 
@@ -415,10 +402,10 @@ Enc_params_t *encoder_create(const char *filename,
 	switch(codec->id)
 	{
 		case AV_CODEC_ID_VP9:
-			set_dict_context(_vp9_context, &(params->opt));
+			set_dict_context(_vp9_dict, &(params->opt));
 			break;
 		case AV_CODEC_ID_VP8:
-			set_dict_context(_vp8_context, &(params->opt));
+			set_dict_context(_vp8_dict, &(params->opt));
 			break;
 		default:
 			errno = EINVAL;

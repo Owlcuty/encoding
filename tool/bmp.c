@@ -99,7 +99,7 @@ framedata_t load_bmp(const char* filename,
 		return NULL;
 	}
 
-	bitmapfileheader_t bmph = {};
+	bitmapfileheader_t bmph = { 0 };
 
 	size_t res = fread(&bmph, 1, sizeof(bitmapfileheader_t), file);
 	if (res != sizeof(bitmapfileheader_t))
