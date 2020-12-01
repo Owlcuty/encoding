@@ -18,13 +18,6 @@
 
 #define AVFMT_RAWPICTURE 0x0020
 
-#define ENC_DEBUG_SESSION
-//#define MAIN_LOOP_DEBUG_SESSION
-
-#ifndef __FILENAME__
-#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-#endif
-
 const int EP_CODEC_ID_VP8_ = AV_CODEC_ID_VP8;
 const int EP_CODEC_ID_VP9_ = AV_CODEC_ID_VP9;
 
@@ -117,25 +110,12 @@ const dict_ccontext_t _vp9_context = {
 	14
 };
 
-static void log_packet(const AVFormatContext *fmt_ctx, const AVPacket *pkt)
-{
-	AVRational *time_base = &fmt_ctx->streams[pkt->stream_index]->time_base;
-	printf("pts:%s pts_time:%s dts:%s dts_time:%s duration:%s duration_time:%s stream_index:%d\n",
-			av_ts2str(pkt->pts), av_ts2timestr(pkt->pts, time_base),
-			av_ts2str(pkt->dts), av_ts2timestr(pkt->dts, time_base),
-			av_ts2str(pkt->duration), av_ts2timestr(pkt->duration, time_base),
-			pkt->stream_index);
-}
-
 static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
 	/* rescale output packet timestamp values from codec to stream timebase */
 	av_packet_rescale_ts(pkt, *time_base, st->time_base);
 	pkt->stream_index = st->index;
 	/* Write the compressed frame to the media file. */
-#ifndef MAIN_LOOP_DEBUG_SESSION
-	log_packet(fmt_ctx, pkt);
-#endif
 	return av_interleaved_write_frame(fmt_ctx, pkt);
 }
 
@@ -388,16 +368,11 @@ Enc_params_t *encoder_create(const char *filename,
 
 	AVCodec			*codec	= params->codec;
 	AVCodecContext	*ctx	= params->ctx;
-//	AVFormatContext		*oc		= params->oc;
 
 	switch (codec->type) {
 	case AVMEDIA_TYPE_AUDIO:
-		// ?
-//		/*
 		ctx->sample_fmt  = codec->sample_fmts ?
 			codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
-//		*/
-//		 ?
 		ctx->bit_rate    = 64000;
 		ctx->sample_rate = 44100;
 		if (codec->supported_samplerates) {
@@ -422,8 +397,8 @@ Enc_params_t *encoder_create(const char *filename,
 		ctx->codec_id = codec->id;
 		ctx->bit_rate = 400000;
 		/* Resolution must be a multiple of two. */
-		ctx->width    = width; //1366;//640;
-		ctx->height   = height; //768;//360;
+		ctx->width    = width;
+		ctx->height   = height;
 
 	break;
 	default:
@@ -456,14 +431,9 @@ Enc_params_t *encoder_create(const char *filename,
 	params->have_video   = 0;
 	params->encode_video = 0;
 
-#ifdef FFVER_3_0
-	av_register_all();
-#endif
-
 	params->fmt = params->oc->oformat;
 	if (!params->fmt)
 	{
-		printf("%d:: Could not deduce output format from file extension: using MPEG.", __LINE__);
 		params->fmt = av_guess_format("mpeg", NULL, NULL);
 		params->oc->oformat = params->fmt;
 	}
@@ -494,8 +464,6 @@ Enc_params_t *encoder_create(const char *filename,
 		}
 	}
 
-	av_dump_format(params->oc, 0, filename, 1);
-
 	if (!(params->fmt->flags & AVFMT_NOFILE))
 	{
 		ret = avio_open(&(params->oc->pb), filename, AVIO_FLAG_WRITE);
@@ -520,13 +488,6 @@ err:
 static AVFrame *get_video_frame(AVCodecContext *ctx, OutputStream *ost, framedata_t bmp)
 {
 	/* check if we want to generate more frames */
-#if 0
-#ifndef MAIN_LOOP_DEBUG_SESSION
-	if (av_compare_ts(ost->next_pts, ctx->time_base,
-			STREAM_DURATION, (AVRational){ 1, 1 }) >= 0)
-		return NULL;
-#endif
-#endif
 	int ret = 0;
 
 	ret = av_frame_make_writable(ost->frame);
@@ -581,31 +542,7 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 		av_init_packet(&pkt);
 
 		/* encode the image */
-#ifdef FFVER_3_0
-		int got_packet = 0;
-
-		ret = avcodec_encode_video2(ctx, &pkt, frame, &got_packet);
-		if (ret < 0)
-		{
-			return ret;
-		}
-
-		if (got_packet)
-		{
-			ret = write_frame(oc, &ctx->time_base, ost->st, &pkt);
-		}
-		else
-		{
-			ret = 0;
-		}
-	}
-	if (ret < 0)
-	{
-		return ret;
-	}
-	return (frame || got_packet) ? 0 : 1;
-#else
-		ret = avcodec_send_frame(ctx, frame); // necessary to fix with ffmpeg 3.0
+		ret = avcodec_send_frame(ctx, frame);
 		if (ret < 0)
 		{
 			goto end;
@@ -626,7 +563,6 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 end:
 		ret = ((ret == AVERROR(EAGAIN)) ? 0 : -1);
 		return ret;
-#endif
 }
 
 static void close_stream(OutputStream *ost)
@@ -635,55 +571,28 @@ static void close_stream(OutputStream *ost)
 	av_frame_free(&ost->tmp_frame);
 }
 
-int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_, int type)
+int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_)
 {
 	if (params == NULL)
 	{
 		errno = EINVAL;
 		return AVERROR(errno);
 	}
-
-	framedata_t data = NULL;
-	int ret = 0;
-	switch (type)
+	if (data_ == NULL)
 	{
-		case 0: // framedata_t* frame
-			data = (framedata_t)data_;
-			break;
-		case 1: // const char* filename
-			ret = load_frame(&data, (const char*)data_, frame_ind);
-			if (ret < 0 || data == NULL)
-			{
-				return ret;
-			}
-			break;
-		default:
-			errno = EINVAL;
-			return AVERROR(errno);
-			break;
+		errno = EINVAL;
+		return AVERROR(errno);
 	}
 
-#ifdef MAIN_LOOP_DEBUG_SESSION
-		double time = 0;
-#endif
-		params->encode_video = (int)(write_video_frame(params->ctx, params->oc, &(params->video_st), data) == 0);
-		if (params->encode_video < 0)
-		{
-			return params->encode_video;
-		}
-#ifdef MAIN_LOOP_DEBUG_SESSION
-		time++;
-		if ((int)time % 10 == 0)
-		{
-			frame_ind = 1;
-		}
-		printf("\rVideo duration: %.3fs", time / params->frame_rate);
-		fflush(stdout);
-#endif
+	framedata_t data = (framedata_t)data_;
+
+	params->encode_video = (int)(write_video_frame(params->ctx, params->oc, &(params->video_st), data) == 0);
+	if (params->encode_video < 0)
+	{
+		return params->encode_video;
+	}
 
 	return 0;
-
-	//time_t finish = time(NULL);
 }
 
 int encoder_write(Enc_params_t *params)
@@ -729,7 +638,6 @@ err:
 
 void encoder_destruct(Enc_params_t* params)
 {
-//	avcodec_parameters_free(&(params->cparams));
 	avcodec_free_context(&(params->ctx));
 
 	free(params);

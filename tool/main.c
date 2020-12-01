@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 			return errno;
 		}
 
-		ret = encoder_add_frame(params, frame_ind, bmp, 0);
+		ret = encoder_add_frame(params, frame_ind, bmp);
 		if (ret < 0)
 		{
 			return -1;

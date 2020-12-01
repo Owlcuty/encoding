@@ -43,11 +43,9 @@ EncoderParameters_p encoder_create(const char *filename,
  * 
  * @param params for encoding frame
  * @param data framedata_t* [[uint8_t*]] rgb24p frame or const char* format_frame_file_name
- * @param type  0 is for `framedata_t* [[uint8_t*]] rgb24p frame`
- * 				1 is for `const char* format_frame_file_name`
  * @return zero on success, an errno on failure. Set errno on EIVAL or ENOMEM
  */
-int encoder_add_frame(EncoderParameters_p params, size_t frame_ind, const void *data_, int type);
+int encoder_add_frame(EncoderParameters_p params, size_t frame_ind, const void *data_);
 
 /**
  * @brief Write the stream trailer to an output media file, free the

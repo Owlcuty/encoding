@@ -38,9 +38,6 @@ int get_filesize(FILE* file)
 	fseek(file, 0, SEEK_END);
 	int filesize = ftell(file);
 	fseek(file, pos, SEEK_SET);
-#ifdef BMP_DEBUG_SESSION
-	printf("%d::%s:: size of file = %d\n", __LINE__, __PRETTY_FUNCTION__, filesize);
-#endif
 	return filesize;
 }
 
@@ -99,7 +96,6 @@ framedata_t load_bmp(const char* filename,
 	FILE *file = fopen(filename, "rb");
 	if (!file)
 	{
-		ERRPRINTF_BMP("Could not open file %s", filename);
 		return NULL;
 	}
 
@@ -108,7 +104,6 @@ framedata_t load_bmp(const char* filename,
 	size_t res = fread(&bmph, 1, sizeof(bitmapfileheader_t), file);
 	if (res != sizeof(bitmapfileheader_t))
 	{
-		ERRPRINTF_BMP("Bad reading file %s", filename);
 		goto err;
 	}
 
@@ -118,7 +113,6 @@ framedata_t load_bmp(const char* filename,
 
 	if (bmph.bfType != 0x4D42)
 	{
-		ERRPRINTF_BMP("Bad signature [[ %s.bfType ]] {%X}", ARG_NAME(bmph), bmph.bfType);
 		goto err;
 	}
 
@@ -129,7 +123,6 @@ framedata_t load_bmp(const char* filename,
 #endif
 	if (filesize == -1)
 	{
-		ERRPRINTF_BMP("Bad read size of %s", filename);
 		goto err;
 	}
 
@@ -142,7 +135,6 @@ framedata_t load_bmp(const char* filename,
 
 	if (fread(buffer, 1, filesize, file) < filesize - sizeof(bitmapfileheader_t))
 	{
-		ERRPRINTF_BMP("Bad here :: %s", __PRETTY_FUNCTION__);
 		goto err;
 	}
 
@@ -156,9 +148,6 @@ framedata_t load_bmp(const char* filename,
 		bmph.bfReserved1	!= 0		||
 		bmph.bfReserved2	!= 0)
 	{
-		printf("%d::%s::%s BAD HERE\n -- bfSize {%d} \\\\ filesize {%d} -- bfReserved1 {%d} -- bfReserved2 {%d}\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__,
-			bmph.bfSize, filesize, bmph.bfReserved1, bmph.bfReserved2);
-
 		goto err;
 	}
 
@@ -182,7 +171,6 @@ framedata_t load_bmp(const char* filename,
 	}
 	else
 	{
-		ERRPRINTF_BMP("Bad bitmap core");
 		goto err;
 	}
 
@@ -253,17 +241,14 @@ framedata_t load_bmp(const char* filename,
 
 	if (bmpinfo.biSize != 12 && bmpinfo.biSize != 40 && bmpinfo.biSize != 52 &&
 		bmpinfo.biSize != 56 && bmpinfo.biSize != 108) {
-		ERRPRINTF_BMP("Error: Unsupported BMP format.");
 		goto err;
 	}
 
 	if (bmpinfo.biBitCount != 16 && bmpinfo.biBitCount != 24 && bmpinfo.biBitCount != 32) {
-		ERRPRINTF_BMP("Error: Unsupported BMP bit count.");
 		goto err;
 	}
 
 	if (bmpinfo.biCompression != 0 && bmpinfo.biCompression != 3) {
-		ERRPRINTF_BMP("Error: Unsupported BMP compression.");
 		goto err;
 	}
 
@@ -274,7 +259,6 @@ framedata_t load_bmp(const char* filename,
 		bmpinfo.biCompression	!= 0
 		)
 	{
-		ERRPRINTF_BMP("Bad data");
 		goto err;
 	}
 
@@ -294,19 +278,9 @@ framedata_t load_bmp(const char* filename,
 		goto err;
 	}
 
-#ifdef BMP_DEBUG_SESSION
-	printf("%d:: %d bytes was alloced\n", __LINE__, bmpinfo.biSizeImage); // log (to del // debug session)
-#endif
-	
 	if (bmpinfo.biSizeImage == 0) // necessary ?
 	{
-#ifdef BMP_DEBUG_SESSION
-		printf("%d:: biSizeImage = 0\n", __LINE__);
-#endif
 		bmpinfo.biSizeImage = (bmpinfo.biWidth * 3 + bmpinfo.biWidth % 4) * bmpinfo.biHeight;
-#ifdef BMP_DEBUG_SESSION
-		printf("-->biSizeImage = {%d}\n", bmpinfo.biSizeImage);
-#endif
 	}
 	memcpy(tmp_buf, cur_pos, bmpinfo.biSizeImage);
 
@@ -371,7 +345,6 @@ int load_frame(framedata_t* data, const char *filename, size_t frame_ind)
 	*data = load_bmp((const char*)cur_filename, &width, &height);
 	if (!(*data))
 	{
-		ERRPRINTF_BMP("Bad loading bmp\n");
 		goto err;
 	}
 
