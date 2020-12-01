@@ -25,14 +25,6 @@
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 
-#ifndef ERRPRINTF
-#ifdef ENC_DEBUG_SESSION
-#define ERRPRINTF(format, ...)	fprintf(stderr, "%d::%s::%s__::__ " format "\n", __LINE__, __FILENAME__, __PRETTY_FUNCTION__, ## __VA_ARGS__)
-#else
-#define ERRPRINTF(format, ...) 
-#endif
-#endif
-
 const int EP_CODEC_ID_VP8_ = AV_CODEC_ID_VP8;
 const int EP_CODEC_ID_VP9_ = AV_CODEC_ID_VP9;
 
@@ -168,7 +160,6 @@ static AVFrame *alloc_picture(enum AVPixelFormat pix_fmt, int width, int height)
 	if (ret < 0)
 	{
 		errno = ret;
-		ERRPRINTF("Could not allocate frame data.");
 		return NULL;
 	}
 	return picture;
@@ -183,11 +174,9 @@ static int open_video(Enc_params_t *params)
 
 	av_dict_copy(&opt, params->opt, 0);
 	/* open the codec */
-	ERRPRINTF("params->..->codec_id ctx{%d}[%s] codec{%d}[%s]", params->ctx->codec_id, avcodec_get_name(params->ctx->codec_id),  params->codec->id, avcodec_get_name(params->ctx->codec_id));
 	ret = avcodec_open2(c, params->codec, &opt);
 	av_dict_free(&opt);
 	if (ret < 0) {
-		ERRPRINTF("Could not open video codec: %s", av_err2str(ret));
 		return ret;
 	}
 
@@ -195,7 +184,6 @@ static int open_video(Enc_params_t *params)
 	ost->frame = alloc_picture(c->pix_fmt, c->width, c->height);
 	if (!ost->frame)
 	{
-		ERRPRINTF("Could not allocate video frame");
 		return AVERROR(errno);
 	}
 
@@ -208,7 +196,6 @@ static int open_video(Enc_params_t *params)
 		ost->tmp_frame = alloc_picture(AV_PIX_FMT_YUV420P, c->width, c->height);
 		if (!ost->tmp_frame)
 		{
-			ERRPRINTF("Could not allocate temporary picture");
 			return AVERROR(errno);
 		}
 	}
@@ -216,7 +203,6 @@ static int open_video(Enc_params_t *params)
 	ret = avcodec_parameters_from_context(ost->st->codecpar, c);
 	if (ret < 0)
 	{
-		ERRPRINTF("Bad `parameters_from_context`");
 		return ret;
 	}
 
@@ -227,7 +213,6 @@ static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 {
 	if (bmp == NULL)
 	{
-		ERRPRINTF("Bad bmp data");
 		errno = EINVAL;
 		return AVERROR(errno);
 	}
@@ -239,7 +224,6 @@ static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 												0, NULL, NULL, NULL);
 	if (!sws_ctx)
 	{
-		ERRPRINTF("Bad sws_getContext");
 		errno = ENOMEM;
 		goto err;
 	}
@@ -250,7 +234,6 @@ static int fill_yuv_image(AVFrame *pict, int width, int height, framedata_t bmp)
 	int ret = av_image_alloc(pict->data, pict->linesize, pict->width, pict->height, AV_PIX_FMT_YUV420P, 32);
 	if (ret < 0)
 	{
-		ERRPRINTF("Could not allocate raw picture buffer");
 		errno = ENOMEM;
 		goto err;
 	}
@@ -284,7 +267,6 @@ int add_stream(Enc_params_t *params)
 	OutputStream *ost = &(params->video_st);
 	ost->st = avformat_new_stream(params->oc, params->codec);
 	if (ost->st == NULL) {
-		ERRPRINTF("Could not allocate stream");
 		return AVERROR(errno);
 	}
 	ost->st->id = params->oc->nb_streams - 1;
@@ -348,7 +330,6 @@ Enc_params_t *encoder_create(const char *filename,
 	if (filename == NULL)
 	{
 		errno = EINVAL;
-		ERRPRINTF("Bad filename");
 		return NULL;
 	}
 
@@ -362,7 +343,6 @@ Enc_params_t *encoder_create(const char *filename,
 			codec_id = AV_CODEC_ID_VP9;
 			break;
 		default:
-			ERRPRINTF("Not available codec id");
 			errno = EINVAL;
 			return NULL;
 	}
@@ -382,7 +362,6 @@ Enc_params_t *encoder_create(const char *filename,
 	if (params->codec == NULL)
 	{
 		errno = EINVAL;
-		ERRPRINTF("Could not find encoder for '%s'", avcodec_get_name(codec_id));
 		return NULL;
 	}
 
@@ -391,7 +370,6 @@ Enc_params_t *encoder_create(const char *filename,
 	if (!params->ctx)
 	{
 		errno = ENOMEM;
-		ERRPRINTF("Could not allocate codec context");
 		return NULL;
 	}
 
@@ -400,13 +378,11 @@ Enc_params_t *encoder_create(const char *filename,
 	{
 		errno = ENOMEM;
 		return NULL;
-		ERRPRINTF("ffmpeg: Could not deduce output format file extension: using MPEG.\n");
 		avformat_alloc_output_context2(&(params->oc), NULL, "webm", filename);
 	}
 	if (params->oc == NULL)
 	{
 		errno = ENOMEM;
-		ERRPRINTF("ffmpeg: Could not alloc output context");
 		return NULL;
 	}
 
@@ -458,7 +434,6 @@ Enc_params_t *encoder_create(const char *filename,
 	if (ret < 0)
 	{
 		errno = ENOMEM;
-		ERRPRINTF("Bad alloc dict");
 		return NULL;
 	}
 
@@ -472,30 +447,9 @@ Enc_params_t *encoder_create(const char *filename,
 			break;
 		default:
 			errno = EINVAL;
-			ERRPRINTF("Bad codec_id");
 			goto err;
 			break;
 	}
-
-
-#define JUST_FOR_TEST_VP9
-#ifdef JUST_FOR_TEST_VP9
-	dict_ccontext_t ctx_opt = _vp9_context;
-	for (size_t p_id = 0; p_id < 14; p_id++)
-	{
-		AVDictionaryEntry* tempvar = NULL;
-		
-		if ((tempvar = av_dict_get(params->opt, ctx_opt.param[p_id].key, NULL, 0)) == NULL)
-		{
-			ERRPRINTF("Can't find %s", ctx_opt.param[p_id].key);
-		}
-		else
-		{
-			ERRPRINTF("%s -> %s", tempvar->key, tempvar->value);
-		}
-		
-	}
-#endif
 
 	params->fmt	= NULL;
 
@@ -515,7 +469,6 @@ Enc_params_t *encoder_create(const char *filename,
 	}
 	if (!params->fmt)
 	{
-		ERRPRINTF("Could not find suitable output format");
 		goto err;
 	}
 
@@ -548,7 +501,6 @@ Enc_params_t *encoder_create(const char *filename,
 		ret = avio_open(&(params->oc->pb), filename, AVIO_FLAG_WRITE);
 		if (ret < 0)
 		{
-			ERRPRINTF("Could not open '%s' : %s", filename, av_err2str(ret));
 			goto err;
 		}
 	}
@@ -556,7 +508,6 @@ Enc_params_t *encoder_create(const char *filename,
 	ret = avformat_write_header(params->oc, &(params->opt));
 	if (ret < 0)
 	{
-		ERRPRINTF("Error occurred when opening output file: %s", av_err2str(ret));
 		goto err;
 	}
 
@@ -581,7 +532,6 @@ static AVFrame *get_video_frame(AVCodecContext *ctx, OutputStream *ost, framedat
 	ret = av_frame_make_writable(ost->frame);
 	if (ret < 0)
 	{
-		ERRPRINTF("Bad `frame_make_writable`: %s", av_err2str(ret));
 		return NULL;
 	}
 
@@ -637,7 +587,6 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 		ret = avcodec_encode_video2(ctx, &pkt, frame, &got_packet);
 		if (ret < 0)
 		{
-			ERRPRINTF("Error encoding video frame: %s", av_err2str(ret));
 			return ret;
 		}
 
@@ -652,7 +601,6 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 	}
 	if (ret < 0)
 	{
-		ERRPRINTF("Error while writing video frame: %s", av_err2str(ret));
 		return ret;
 	}
 	return (frame || got_packet) ? 0 : 1;
@@ -660,7 +608,6 @@ static int write_video_frame(AVCodecContext *ctx, AVFormatContext *oc, OutputStr
 		ret = avcodec_send_frame(ctx, frame); // necessary to fix with ffmpeg 3.0
 		if (ret < 0)
 		{
-			ERRPRINTF("Error sending frame for encoding: %s", av_err2str(ret));
 			goto end;
 		}
 		
@@ -737,7 +684,6 @@ int encoder_add_frame(Enc_params_t *params, size_t frame_ind, const void *data_,
 	return 0;
 
 	//time_t finish = time(NULL);
-	//ERRPRINTF("%lf sec for %zu frames", difftime(finish, start), frame_ind);
 }
 
 int encoder_write(Enc_params_t *params)
