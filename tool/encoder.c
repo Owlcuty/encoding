@@ -13,7 +13,6 @@
 
 #include "encoder.h"
 
-
 #define STREAM_PIX_FMT		AV_PIX_FMT_YUV420P /* default pix_fmt */
 
 #define AVFMT_RAWPICTURE 0x0020
@@ -22,8 +21,7 @@
 #	define NITEMS(__val)	(sizeof(__val) / sizeof(__val[0]))
 #endif
 
-const int EP_CODEC_ID_VP8_ = AV_CODEC_ID_VP8;
-const int EP_CODEC_ID_VP9_ = AV_CODEC_ID_VP9;
+#define EP_calc_bitrate(width, height, framerate) 0.15 * (width) * (height) * (framerate)
 
 // a wrapper around a single output AVStream
 typedef struct OutputStream {
@@ -68,7 +66,7 @@ const AVDictionaryEntry _vp8_dict[] = {
 	{"b", "768k"},
 	{"g", "120"},
 
-	{"maxrate", "1.5M"},
+	{"maxrate", "15M"},
 	{"minrate", "40k"},
 	{"auto-alt-ref", "1"},
 	{"arnr-maxframes", "7"},
@@ -89,7 +87,7 @@ const AVDictionaryEntry _vp9_dict[] = {
 	{"b", "768k"},
 	{"g", "120"},
 
-	{"maxrate", "1.5M"},
+	{"maxrate", "15M"},
 	{"minrate", "40k"},
 	{"auto-alt-ref", "1"},
 	{"arnr-maxframes", "15"},
@@ -298,6 +296,9 @@ Enc_params_t *encoder_create(const char *filename,
 		case EP_CODEC_ID_VP9:
 			codec_id = AV_CODEC_ID_VP9;
 			break;
+		case EP_CODEC_ID_HEVC:
+			codec_id = AV_CODEC_ID_HEVC;
+			break;
 		default:
 			errno = EINVAL;
 			return NULL;
@@ -330,10 +331,12 @@ Enc_params_t *encoder_create(const char *filename,
 	}
 
 	avformat_alloc_output_context2(&(params->oc), NULL, NULL, filename);
+#if 0
 	if (params->oc == NULL)
 	{
 		avformat_alloc_output_context2(&(params->oc), NULL, "webm", filename);
 	}
+#endif
 	if (params->oc == NULL)
 	{
 		errno = ENOMEM;
@@ -369,7 +372,7 @@ Enc_params_t *encoder_create(const char *filename,
 		break;
 	case AVMEDIA_TYPE_VIDEO:
 		ctx->codec_id = codec->id;
-		ctx->bit_rate = 400000;
+		ctx->bit_rate = EP_calc_bitrate(width, height, params->frame_rate);
 		/* Resolution must be a multiple of two. */
 		ctx->width    = width;
 		ctx->height   = height;
@@ -393,6 +396,8 @@ Enc_params_t *encoder_create(const char *filename,
 			break;
 		case AV_CODEC_ID_VP8:
 			set_dict_context(_vp8_dict, &(params->opt));
+			break;
+		case AV_CODEC_ID_HEVC:
 			break;
 		default:
 			errno = EINVAL;

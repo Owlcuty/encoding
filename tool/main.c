@@ -5,7 +5,7 @@
 
 int main(int argc, char **argv)
 {
-	const char *filename = "output.webm";
+	const char *filename = "output.mp4";
 
 	const int codec_id = EP_CODEC_ID_VP9;
 
@@ -26,9 +26,9 @@ int main(int argc, char **argv)
 	framedata_t bmp = NULL;
 	int frame_ind = 1;
 
-	while (EP_get_encode_video(params) && frame_ind < 500)
+	while (EP_get_encode_video(params) && frame_ind < 250)
 	{
-		ret = load_frame(&bmp, "../forbmp1080p/image%05d.bmp", frame_ind++);
+		ret = load_frame(&bmp, "../../test_bmp1080p/image%05d.bmp", frame_ind++);
 		if (ret < 0)
 		{
 			perror("load_frame() fail: ");

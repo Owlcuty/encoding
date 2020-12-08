@@ -6,7 +6,8 @@
 enum EPCodecId
 {
 	EP_CODEC_ID_VP8,
-	EP_CODEC_ID_VP9
+	EP_CODEC_ID_VP9,
+	EP_CODEC_ID_HEVC
 };
 
 typedef uint8_t *framedata_t;
