@@ -95,6 +95,16 @@ const AVDictionaryEntry _vp9_dict[] = {
 	{"arnr-type", "centered"}
 };
 
+const char* EP_codec_names[] = {
+	"libvpx",
+	"libvpx-vp9",
+	"libsvt_vp9",
+#if 0
+	"libsvt_hevc",
+#endif
+	""
+};
+
 static int write_frame(AVFormatContext *fmt_ctx, const AVRational *time_base, AVStream *st, AVPacket *pkt)
 {
 	/* rescale output packet timestamp values from codec to stream timebase */
@@ -286,6 +296,11 @@ Enc_params_t *encoder_create(const char *filename,
 		errno = EINVAL;
 		return NULL;
 	}
+	if (ep_codec_id >= EP_CODEC_END)
+	{
+		errno = EINVAL;
+		return NULL;
+	}
 
 	enum AVCodecID codec_id = 0;
 	switch (ep_codec_id)
@@ -294,11 +309,14 @@ Enc_params_t *encoder_create(const char *filename,
 			codec_id = AV_CODEC_ID_VP8;
 			break;
 		case EP_CODEC_ID_VP9:
+		case EP_CODEC_ID_SVT_VP9:
 			codec_id = AV_CODEC_ID_VP9;
 			break;
+#if 0
 		case EP_CODEC_ID_HEVC:
 			codec_id = AV_CODEC_ID_HEVC;
 			break;
+#endif
 		default:
 			errno = EINVAL;
 			return NULL;
@@ -315,7 +333,7 @@ Enc_params_t *encoder_create(const char *filename,
 	params->frame_rate = frame_rate;
 
 	/* find the encoder */
-	params->codec = avcodec_find_encoder(codec_id);
+	params->codec = avcodec_find_encoder_by_name(EP_codec_names[ep_codec_id]);
 	if (params->codec == NULL)
 	{
 		errno = EINVAL;
@@ -331,12 +349,10 @@ Enc_params_t *encoder_create(const char *filename,
 	}
 
 	avformat_alloc_output_context2(&(params->oc), NULL, NULL, filename);
-#if 0
 	if (params->oc == NULL)
 	{
 		avformat_alloc_output_context2(&(params->oc), NULL, "webm", filename);
 	}
-#endif
 	if (params->oc == NULL)
 	{
 		errno = ENOMEM;

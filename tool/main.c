@@ -5,7 +5,7 @@
 
 int main(int argc, char **argv)
 {
-	const char *filename = "output.mp4";
+	const char *filename = "output.webm";
 
 	const int codec_id = EP_CODEC_ID_VP9;
 
